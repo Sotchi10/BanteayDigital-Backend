@@ -1,0 +1,234 @@
+openapi: 3.0.3
+info:
+  title: BanteayDigital Authentication API
+  version: 1.2.0
+  description: "Users can sign up with an email address, a phone number, or both. Login requires exactly one identifier: email or phone number."
+servers:
+  - url: http://localhost:3000
+tags:
+  - name: Authentication
+paths:
+  /api/v1/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Sign up with email or phone number
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              email:
+                summary: Email signup
+                value: { email: sokha@example.com, password: ChangeMe123!, name: Sokha Chenda }
+              phone:
+                summary: Phone signup
+                value: { phoneNumber: '+85512345678', password: ChangeMe123!, name: Sokha Chenda }
+      responses:
+        '201':
+          $ref: '#/components/responses/Authenticated'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '409':
+          description: Email address or phone number is already registered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in with exactly one identifier
+      description: Provide either `email` or `phoneNumber`, along with a password. Supplying both identifiers is rejected.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              email:
+                value: { email: sokha@example.com, password: ChangeMe123! }
+              phone:
+                value: { phoneNumber: '+85512345678', password: ChangeMe123! }
+      responses:
+        '200':
+          $ref: '#/components/responses/Authenticated'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          description: The supplied contact method is not in the database or the password is incorrect.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/v1/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get current user
+      operationId: getCurrentUser
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Current user.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthenticatedUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/v1/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Log out
+      description: Revokes every JWT previously issued for the authenticated user and clears the session cookie.
+      operationId: logoutUser
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Session revoked and cookie cleared.
+          headers:
+            Set-Cookie:
+              description: Expired `token` cookie.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: token
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    ContactDetails:
+      type: object
+      description: Contact fields used for signup. Provide at least one; both may be provided.
+      properties:
+        email:
+          type: string
+          format: email
+          nullable: true
+        phoneNumber:
+          type: string
+          minLength: 3
+          maxLength: 30
+          nullable: true
+      anyOf:
+        - required: [email]
+        - required: [phoneNumber]
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [password]
+      properties:
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+          minLength: 3
+          maxLength: 30
+        password:
+          type: string
+          format: password
+          minLength: 8
+          maxLength: 72
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        age:
+          type: integer
+          minimum: 13
+          maximum: 120
+      anyOf:
+        - required: [email]
+        - required: [phoneNumber]
+    LoginRequest:
+      type: object
+      description: Provide exactly one of `email` or `phoneNumber`.
+      additionalProperties: false
+      required: [password]
+      properties:
+        email:
+          type: string
+          format: email
+        phoneNumber:
+          type: string
+          minLength: 3
+          maxLength: 30
+        password:
+          type: string
+          format: password
+          minLength: 1
+          maxLength: 72
+      oneOf:
+        - required: [email]
+        - required: [phoneNumber]
+    User:
+      type: object
+      required: [id, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email, nullable: true }
+        phoneNumber: { type: string, nullable: true }
+        name: { type: string, nullable: true }
+        age: { type: integer, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AuthenticatedUserResponse:
+      type: object
+      required: [user]
+      properties:
+        user: { $ref: '#/components/schemas/User' }
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message: { type: string }
+        details: { type: object }
+  responses:
+    Authenticated:
+      description: Authenticated user. An HTTP-only `token` cookie is set.
+      headers:
+        Set-Cookie:
+          description: HTTP-only JWT session cookie.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/AuthenticatedUserResponse'
+    ValidationError:
+      description: Request does not include a valid contact method, supplies both login identifiers, or contains another invalid field.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: Authentication is missing, invalid, expired, or has been revoked.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

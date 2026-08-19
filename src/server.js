@@ -5,4 +5,5 @@ const app = createApp()
 
 app.listen(env.port, () => {
   console.log(`Backend listening on http://localhost:${env.port}`)
+  console.log(`Swagger API running on http://localhost:${env.port}/api-doc`)
 })

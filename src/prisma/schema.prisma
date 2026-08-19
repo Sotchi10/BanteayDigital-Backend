@@ -10,16 +10,18 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  phone_num String?  @unique
-  email     String   @unique
-  name      String?
-  age       Int?
-  comments  Comment[]
-  likes     Like[]
-  shares    Share[]
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String   @id @default(cuid())
+  phone_num    String?  @unique
+  email        String?  @unique
+  passwordHash String
+  tokenVersion Int      @default(0)
+  name         String?
+  age          Int?
+  comments     Comment[]
+  likes        Like[]
+  shares       Share[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 }
 
 
