@@ -183,13 +183,22 @@ components:
         - required: [phoneNumber]
     User:
       type: object
-      required: [id, createdAt, updatedAt]
+      required: [id, role, status, createdAt, updatedAt]
       properties:
         id: { type: string }
         email: { type: string, format: email, nullable: true }
         phoneNumber: { type: string, nullable: true }
         name: { type: string, nullable: true }
         age: { type: integer, nullable: true }
+        avatarUrl: { type: string, format: uri, nullable: true }
+        role:
+          type: string
+          enum: [USER, MODERATOR, ADMIN]
+          example: USER
+        status:
+          type: string
+          enum: [ACTIVE, SUSPENDED, BANNED]
+          example: ACTIVE
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
     AuthenticatedUserResponse:

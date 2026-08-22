@@ -4,12 +4,12 @@ import ApiError from '../utils/api-error.js'
 
 const PASSWORD_SALT_ROUNDS = 12
 
-const registerUser = async ({ email, password, name, phoneNumber, age }) => {
+const registerUser = async ({ email, password, name, phoneNumber, age, avatarUrl }) => {
   const passwordHash = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS)
 
   try {
     const user = await prisma.user.create({
-      data: { email, passwordHash, name, phone_num: phoneNumber, age },
+      data: { email, passwordHash, name, phone_num: phoneNumber, age, avatarUrl },
     })
 
     return user
@@ -34,6 +34,14 @@ const loginUser = async ({ email, phoneNumber, password }) => {
 
   if (!passwordMatches) {
     throw new ApiError(401, 'Invalid email, phone number, or password')
+  }
+
+  if (user.status === 'BANNED') {
+    throw new ApiError(403, 'This account has been banned due to security violations')
+  }
+
+  if (user.status === 'SUSPENDED') {
+    throw new ApiError(403, 'This account has been temporarily suspended')
   }
 
   return user
