@@ -1,13 +1,20 @@
 openapi: 3.0.3
 info:
-  title: BanteayDigital Authentication API
-  version: 1.2.0
-  description: "Users can sign up with an email address, a phone number, or both. Login requires exactly one identifier: email or phone number."
+  title: BanteayDigital API Documentation
+  version: 1.3.0
+  description: "BanteayDigital (Digital Fortress) backend API for scam intelligence, reporting, verification, and community cyber protection."
 servers:
   - url: http://localhost:3000
 tags:
   - name: Authentication
+    description: User registration, login, profile, and session management
+  - name: Reports
+    description: Scam report submission, retrieval, updates, and evidence management
+
 paths:
+  # ==========================================
+  # AUTHENTICATION ENDPOINTS
+  # ==========================================
   /api/v1/auth/register:
     post:
       tags: [Authentication]
@@ -22,10 +29,17 @@ paths:
             examples:
               email:
                 summary: Email signup
-                value: { email: sokha@example.com, password: ChangeMe123!, name: Sokha Chenda }
+                value:
+                  email: sokha@example.com
+                  password: ChangeMe123!
+                  name: Sokha Chenda
+                  age: 24
               phone:
                 summary: Phone signup
-                value: { phoneNumber: '+85512345678', password: ChangeMe123!, name: Sokha Chenda }
+                value:
+                  phoneNumber: '+85512345678'
+                  password: ChangeMe123!
+                  name: Sokha Chenda
       responses:
         '201':
           $ref: '#/components/responses/Authenticated'
@@ -37,6 +51,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
   /api/v1/auth/login:
     post:
       tags: [Authentication]
@@ -51,42 +66,48 @@ paths:
               $ref: '#/components/schemas/LoginRequest'
             examples:
               email:
-                value: { email: sokha@example.com, password: ChangeMe123! }
+                value:
+                  email: sokha@example.com
+                  password: ChangeMe123!
               phone:
-                value: { phoneNumber: '+85512345678', password: ChangeMe123! }
+                value:
+                  phoneNumber: '+85512345678'
+                  password: ChangeMe123!
       responses:
         '200':
           $ref: '#/components/responses/Authenticated'
         '400':
           $ref: '#/components/responses/ValidationError'
         '401':
-          description: The supplied contact method is not in the database or the password is incorrect.
+          description: Invalid credentials or account suspended/banned.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
   /api/v1/auth/me:
     get:
       tags: [Authentication]
-      summary: Get current user
+      summary: Get current authenticated user
       operationId: getCurrentUser
       security:
         - cookieAuth: []
         - bearerAuth: []
       responses:
         '200':
-          description: Current user.
+          description: Current authenticated user details.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthenticatedUserResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
   /api/v1/auth/logout:
     post:
       tags: [Authentication]
       summary: Log out
-      description: Revokes every JWT previously issued for the authenticated user and clears the session cookie.
+      description: Revokes JWT tokens and clears the session cookie.
       operationId: logoutUser
       security:
         - cookieAuth: []
@@ -96,7 +117,7 @@ paths:
           description: Session revoked and cookie cleared.
           headers:
             Set-Cookie:
-              description: Expired `token` cookie.
+              description: Expired token cookie.
               schema:
                 type: string
           content:
@@ -105,6 +126,353 @@ paths:
                 $ref: '#/components/schemas/MessageResponse'
         '401':
           $ref: '#/components/responses/Unauthorized'
+
+  # ==========================================
+  # SCAM REPORTS ENDPOINTS
+  # ==========================================
+  /api/v1/reports:
+    post:
+      tags: [Reports]
+      summary: Submit a new scam report
+      description: Submits a scam report for moderation review. Default status is `PENDING`.
+      operationId: createReport
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateReportRequest'
+            examples:
+              phishing:
+                summary: Phishing scam report
+                value:
+                  title: Fake ABA Bank Telegram bot asking for OTP
+                  description: Received a Telegram message claiming my ABA account was locked and directing me to an imitation login portal.
+                  category: PHISHING_LINK
+                  financialLossAmount: 150.00
+                  currency: USD
+                  scammerContact: '@aba_support_kh_bot'
+                  incidentDate: '2026-08-20T10:00:00.000Z'
+                  indicators:
+                    - type: TELEGRAM_HANDLE
+                      value: '@aba_support_kh_bot'
+                      notes: Phishing bot handle
+                    - type: URL
+                      value: 'https://aba-secure-login-kh.xyz'
+                      notes: Fake ABA portal
+      responses:
+        '201':
+          description: Report created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetailResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/reports/my-reports:
+    get:
+      tags: [Reports]
+      summary: List reports submitted by current user
+      description: Returns a paginated list of scam reports created by the logged-in user with filtering and sorting.
+      operationId: listMyReports
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          description: Filter by report review status
+          required: false
+          schema:
+            type: string
+            enum: [PENDING, IN_REVIEW, APPROVED, REJECTED]
+        - name: category
+          in: query
+          description: Filter by scam category
+          required: false
+          schema:
+            type: string
+            enum:
+              - IMPERSONATION
+              - FAKE_NEWS
+              - INVESTMENT_FRAUD
+              - JOB_OFFER
+              - PHISHING_LINK
+              - LOTTERY_PRIZE
+              - LOAN_SCAM
+              - ECOMMERCE_SCAM
+              - ROMANCE_SCAM
+              - MALWARE_APK
+              - OTHER
+        - name: search
+          in: query
+          description: Search term in title, description, or scammer contact
+          required: false
+          schema:
+            type: string
+        - name: page
+          in: query
+          description: Page number (1-based)
+          required: false
+          schema:
+            type: integer
+            default: 1
+            minimum: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            default: 20
+            minimum: 1
+            maximum: 100
+        - name: sortBy
+          in: query
+          description: Sort field
+          required: false
+          schema:
+            type: string
+            enum: [createdAt, incidentDate, financialLossAmount, updatedAt]
+            default: createdAt
+        - name: order
+          in: query
+          description: Sort direction
+          required: false
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Paginated report list.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MyReportsListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/reports/{id}:
+    get:
+      tags: [Reports]
+      summary: Get scam report details by ID
+      description: Returns full details of a scam report including evidence and extracted threat indicators. Accessible by the report owner or admin/moderator staff.
+      operationId: getReportById
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Report details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetailResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    patch:
+      tags: [Reports]
+      summary: Update a scam report
+      description: Updates report details. Only allowed if report is `PENDING` (for owner) or by admin/moderator.
+      operationId: updateReport
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateReportRequest'
+            examples:
+              updateDetails:
+                value:
+                  financialLossAmount: 200.00
+                  scammerContact: '+85599887766, @aba_support_kh_bot'
+      responses:
+        '200':
+          description: Report updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReportDetailResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Reports]
+      summary: Delete a scam report
+      description: Deletes a scam report and associated evidence. Only allowed if report is `PENDING` (for owner) or by admin.
+      operationId: deleteReport
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Report deleted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/reports/{id}/evidence:
+    post:
+      tags: [Reports]
+      summary: Upload or attach evidence to a report
+      description: Uploads one or multiple files (images, PDF documents, videos/audio) via `multipart/form-data` or attaches a direct URL via JSON.
+      operationId: uploadReportEvidence
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report ID
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  description: One or more evidence files (PNG, JPEG, WEBP, PDF, MP4 - max 15MB each).
+                isPublicSafe:
+                  type: boolean
+                  description: Set to true if evidence is safe for public view without sensitive PII.
+                  default: false
+          application/json:
+            schema:
+              type: object
+              required: [fileUrl, fileName]
+              properties:
+                fileUrl:
+                  type: string
+                  format: uri
+                fileName:
+                  type: string
+                fileType:
+                  type: string
+                  enum: [IMAGE, DOCUMENT, AUDIO, VIDEO]
+                  default: IMAGE
+                fileSize:
+                  type: integer
+                mimeType:
+                  type: string
+                isPublicSafe:
+                  type: boolean
+                  default: false
+      responses:
+        '201':
+          description: Evidence attached successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EvidenceUploadResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/reports/{id}/evidence/{evidenceId}:
+    delete:
+      tags: [Reports]
+      summary: Remove an evidence file from a report
+      description: Deletes an attached evidence item from a report.
+      operationId: deleteReportEvidence
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Report ID
+          schema:
+            type: string
+        - name: evidenceId
+          in: path
+          required: true
+          description: Evidence ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Evidence deleted successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+# ==========================================
+# COMPONENTS & SCHEMAS
+# ==========================================
 components:
   securitySchemes:
     cookieAuth:
@@ -115,23 +483,8 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+
   schemas:
-    ContactDetails:
-      type: object
-      description: Contact fields used for signup. Provide at least one; both may be provided.
-      properties:
-        email:
-          type: string
-          format: email
-          nullable: true
-        phoneNumber:
-          type: string
-          minLength: 3
-          maxLength: 30
-          nullable: true
-      anyOf:
-        - required: [email]
-        - required: [phoneNumber]
     RegisterRequest:
       type: object
       additionalProperties: false
@@ -157,9 +510,13 @@ components:
           type: integer
           minimum: 13
           maximum: 120
+        avatarUrl:
+          type: string
+          format: uri
       anyOf:
         - required: [email]
         - required: [phoneNumber]
+
     LoginRequest:
       type: object
       description: Provide exactly one of `email` or `phoneNumber`.
@@ -181,6 +538,7 @@ components:
       oneOf:
         - required: [email]
         - required: [phoneNumber]
+
     User:
       type: object
       required: [id, role, status, createdAt, updatedAt]
@@ -201,22 +559,231 @@ components:
           example: ACTIVE
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+
+    ReportIndicatorInput:
+      type: object
+      required: [type, value]
+      properties:
+        type:
+          type: string
+          enum:
+            - URL
+            - DOMAIN
+            - PHONE_NUMBER
+            - BANK_ACCOUNT
+            - TELEGRAM_HANDLE
+            - SOCIAL_PROFILE
+            - CRYPTO_WALLET
+            - EMAIL
+        value:
+          type: string
+          example: '012345678'
+        notes:
+          type: string
+          example: 'Telegram bot handle'
+
+    CreateReportRequest:
+      type: object
+      required: [title, description, category]
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 255
+          example: Fake ABA Bank Telegram bot asking for OTP
+        description:
+          type: string
+          minLength: 10
+          example: Received a Telegram message claiming my ABA account was locked and directing me to an imitation login portal.
+        category:
+          type: string
+          enum:
+            - IMPERSONATION
+            - FAKE_NEWS
+            - INVESTMENT_FRAUD
+            - JOB_OFFER
+            - PHISHING_LINK
+            - LOTTERY_PRIZE
+            - LOAN_SCAM
+            - ECOMMERCE_SCAM
+            - ROMANCE_SCAM
+            - MALWARE_APK
+            - OTHER
+          example: PHISHING_LINK
+        financialLossAmount:
+          type: number
+          minimum: 0
+          example: 150.00
+          nullable: true
+        currency:
+          type: string
+          enum: [USD, KHR]
+          default: USD
+        scammerContact:
+          type: string
+          example: '@aba_support_kh_bot'
+          nullable: true
+        incidentDate:
+          type: string
+          format: date-time
+          nullable: true
+        indicators:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportIndicatorInput'
+
+    UpdateReportRequest:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 3
+          maxLength: 255
+        description:
+          type: string
+          minLength: 10
+        category:
+          type: string
+          enum:
+            - IMPERSONATION
+            - FAKE_NEWS
+            - INVESTMENT_FRAUD
+            - JOB_OFFER
+            - PHISHING_LINK
+            - LOTTERY_PRIZE
+            - LOAN_SCAM
+            - ECOMMERCE_SCAM
+            - ROMANCE_SCAM
+            - MALWARE_APK
+            - OTHER
+        financialLossAmount:
+          type: number
+          minimum: 0
+          nullable: true
+        currency:
+          type: string
+          enum: [USD, KHR]
+        scammerContact:
+          type: string
+          nullable: true
+        incidentDate:
+          type: string
+          format: date-time
+          nullable: true
+        indicators:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportIndicatorInput'
+
+    ReportEvidence:
+      type: object
+      required: [id, reportId, fileUrl, fileName, fileType, fileSize, isPublicSafe, createdAt]
+      properties:
+        id: { type: string }
+        reportId: { type: string }
+        fileUrl: { type: string }
+        fileName: { type: string }
+        fileType: { type: string, enum: [IMAGE, DOCUMENT, AUDIO, VIDEO] }
+        fileSize: { type: integer }
+        mimeType: { type: string, nullable: true }
+        isPublicSafe: { type: boolean }
+        createdAt: { type: string, format: date-time }
+
+    ScamIndicator:
+      type: object
+      required: [id, type, value, riskScore, matchCount, isBlacklisted, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        type: { type: string }
+        value: { type: string }
+        sourceReportId: { type: string, nullable: true }
+        riskScore: { type: integer }
+        matchCount: { type: integer }
+        isBlacklisted: { type: boolean }
+        notes: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    Report:
+      type: object
+      required: [id, userId, title, description, category, status, createdAt, updatedAt]
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        title: { type: string }
+        description: { type: string }
+        category: { type: string }
+        status: { type: string, enum: [PENDING, IN_REVIEW, APPROVED, REJECTED] }
+        financialLossAmount: { type: string, nullable: true }
+        currency: { type: string, nullable: true }
+        scammerContact: { type: string, nullable: true }
+        incidentDate: { type: string, format: date-time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportEvidence'
+        extractedIndicators:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScamIndicator'
+
+    PaginationMeta:
+      type: object
+      required: [total, page, limit, totalPages]
+      properties:
+        total: { type: integer }
+        page: { type: integer }
+        limit: { type: integer }
+        totalPages: { type: integer }
+
+    ReportDetailResponse:
+      type: object
+      properties:
+        message: { type: string }
+        report: { $ref: '#/components/schemas/Report' }
+
+    MyReportsListResponse:
+      type: object
+      required: [reports, meta]
+      properties:
+        reports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Report'
+        meta:
+          $ref: '#/components/schemas/PaginationMeta'
+
+    EvidenceUploadResponse:
+      type: object
+      required: [message, evidence]
+      properties:
+        message: { type: string }
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/ReportEvidence'
+
     AuthenticatedUserResponse:
       type: object
       required: [user]
       properties:
         user: { $ref: '#/components/schemas/User' }
+
     MessageResponse:
       type: object
       required: [message]
       properties:
         message: { type: string }
+
     Error:
       type: object
       required: [message]
       properties:
         message: { type: string }
         details: { type: object }
+
   responses:
     Authenticated:
       description: Authenticated user. An HTTP-only `token` cookie is set.
@@ -229,14 +796,30 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/AuthenticatedUserResponse'
+
     ValidationError:
-      description: Request does not include a valid contact method, supplies both login identifiers, or contains another invalid field.
+      description: Invalid request parameters or body fields.
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/Error'
+
     Unauthorized:
-      description: Authentication is missing, invalid, expired, or has been revoked.
+      description: Authentication is missing, invalid, expired, or revoked.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    Forbidden:
+      description: Insufficient role permissions or ownership check failed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: The requested resource does not exist.
       content:
         application/json:
           schema:
