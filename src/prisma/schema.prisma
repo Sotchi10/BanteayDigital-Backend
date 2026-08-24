@@ -9,85 +9,389 @@ datasource db {
   provider = "mysql"
 }
 
+// ==========================================
+// 1. USER & IDENTITY MANAGEMENT
+// ==========================================
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+}
+
 model User {
-  id           String   @id @default(cuid())
-  phone_num    String?  @unique
-  email        String?  @unique
+  id           String      @id @default(cuid())
+  phone_num    String?     @unique
+  email        String?     @unique
   passwordHash String
-  tokenVersion Int      @default(0)
   name         String?
   age          Int?
-  comments     Comment[]
-  likes        Like[]
-  shares       Share[]
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  avatarUrl    String?     @db.VarChar(512)
+  role         UserRole    @default(USER)
+  status       UserStatus  @default(ACTIVE)
+  tokenVersion Int         @default(0)
+
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relationships
+  reports         Report[]
+  reviewLogs      ReportReviewLog[] @relation("AdminReviewLogs")
+  communityPosts  CommunityPost[]   @relation("AuthoredPosts")
+  comments        Comment[]
+  likes           PostLike[]
+  bookmarks       PostBookmark[]
+  shares          PostShare[]
+  scanRequests    ScanRequest[]
+  scanFeedbacks   ScanFeedback[]
+
+  @@index([role])
+  @@index([status])
 }
 
+// ==========================================
+// 2. SCAM REPORTS & EVIDENCE
+// ==========================================
 
-/// Posts are published by the BanteayDigital system not user.
-model Post {
-  id          String        @id @default(cuid())
-  title       String
-  content     String        @db.LongText
-  status      PostStatus    @default(PUBLISHED)
-  publishedBy PostPublisher @default(SYSTEM)
-  publishedAt DateTime      @default(now())
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  comments Comment[]
-  likes    Like[]
-  shares   Share[]
-
-  @@index([publishedAt])
+enum ScamCategory {
+  IMPERSONATION          // Impersonating authorities, banks, or family
+  FAKE_NEWS              // Disinformation / viral misinformation
+  INVESTMENT_FRAUD       // Ponzi, crypto, forex schemes
+  JOB_OFFER              // Fake work-from-home, overseas job traps
+  PHISHING_LINK          // Fake login pages, OTP stealers
+  LOTTERY_PRIZE          // Fake rewards, lucky draw scams
+  LOAN_SCAM              // High-interest predatory / advance-fee loans
+  ECOMMERCE_SCAM         // Fake products, non-delivery of goods
+  ROMANCE_SCAM           // Pig-butchering, catfishing
+  MALWARE_APK            // Malicious APK downloads
+  OTHER
 }
 
-model Comment {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  content   String   @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([postId, createdAt])
+enum ReportStatus {
+  PENDING       // Submitted, awaiting review
+  IN_REVIEW     // Under active investigation by moderator
+  APPROVED      // Verified scam incident
+  REJECTED      // Invalid, duplicate, or unverified submission
 }
 
-model Like {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String
-  createdAt DateTime @default(now())
+model Report {
+  id                  String          @id @default(cuid())
+  userId              String
+  title               String          @db.VarChar(255)
+  description         String          @db.Text
+  category            ScamCategory
+  status              ReportStatus    @default(PENDING)
+  
+  // Financial & target telemetry
+  financialLossAmount Decimal?        @db.Decimal(12, 2)
+  currency            String?         @default("USD") @db.VarChar(10) // USD or KHR
+  scammerContact      String?         @db.VarChar(255) // Phone, Telegram handle, Facebook link
+  incidentDate        DateTime?
+  
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
 
-  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Relationships
+  user                User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  evidence            ReportEvidence[]
+  reviewLogs          ReportReviewLog[]
+  communityPost       CommunityPost?  // 1-to-1 if promoted to public community feed
+  extractedIndicators ScamIndicator[]
 
-  @@unique([postId, userId])
+  @@index([userId])
+  @@index([status, createdAt])
+  @@index([category])
 }
 
-model Share {
-  id        String   @id @default(cuid())
-  postId    String
-  userId    String?
-  channel   String?
-  createdAt DateTime @default(now())
-
-  post Post  @relation(fields: [postId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([postId, createdAt])
+enum EvidenceFileType {
+  IMAGE
+  DOCUMENT
+  AUDIO
+  VIDEO
 }
 
-enum PostPublisher {
-  SYSTEM
+model ReportEvidence {
+  id           String           @id @default(cuid())
+  reportId     String
+  fileUrl      String           @db.VarChar(512)
+  fileName     String           @db.VarChar(255)
+  fileType     EvidenceFileType @default(IMAGE)
+  fileSize     Int              // File size in bytes
+  mimeType     String?          @db.VarChar(100)
+  isPublicSafe Boolean          @default(false) // Whether PII has been scrubbed for public viewing
+  createdAt    DateTime         @default(now())
+
+  report       Report           @relation(fields: [reportId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+}
+
+model ReportReviewLog {
+  id             String        @id @default(cuid())
+  reportId       String
+  adminId        String
+  previousStatus ReportStatus
+  newStatus      ReportStatus
+  reviewNote     String?       @db.Text
+  createdAt      DateTime      @default(now())
+
+  report         Report        @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  admin          User          @relation("AdminReviewLogs", fields: [adminId], references: [id], onDelete: Cascade)
+
+  @@index([reportId])
+  @@index([adminId])
+}
+
+// ==========================================
+// 3. THREAT INTELLIGENCE & SCAM INDICATORS
+// ==========================================
+
+enum IndicatorType {
+  URL
+  DOMAIN
+  PHONE_NUMBER
+  BANK_ACCOUNT        // e.g. ABA Account, Wing, Bakong ID
+  TELEGRAM_HANDLE
+  SOCIAL_PROFILE      // Facebook page/profile, TikTok handle
+  CRYPTO_WALLET
+  EMAIL
+}
+
+model ScamIndicator {
+  id             String        @id @default(cuid())
+  type           IndicatorType
+  value          String        @unique @db.VarChar(255) // Exact normalized string (e.g. normalized phone, domain)
+  sourceReportId String?
+  riskScore      Int           @default(80)             // 0-100 score
+  matchCount     Int           @default(1)              // Times flagged/scanned
+  isBlacklisted  Boolean       @default(true)
+  notes          String?       @db.VarChar(255)
+
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  sourceReport   Report?       @relation(fields: [sourceReportId], references: [id], onDelete: SetNull)
+
+  @@index([type, value])
+  @@index([isBlacklisted])
+}
+
+// ==========================================
+// 4. COMMUNITY & PUBLIC ALERTS
+// ==========================================
+
+enum PostType {
+  COMMUNITY_REPORT  // Verified scam report made public
+  OFFICIAL_ALERT    // System-wide critical scam alert from authorities/admin
+  EDUCATIONAL_TIP   // Scam prevention guide / tips
+  TREND_REPORT      // Weekly/monthly scam trend breakdown
+}
+
+enum SeverityLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
 }
 
 enum PostStatus {
   DRAFT
   PUBLISHED
   ARCHIVED
+}
+
+model CommunityPost {
+  id          String        @id @default(cuid())
+  reportId    String?       @unique // Optional link to original approved report
+  authorId    String        // Admin/System author
+  postType    PostType      @default(COMMUNITY_REPORT)
+  severity    SeverityLevel @default(HIGH)
+  category    ScamCategory  @default(OTHER)
+  
+  title       String        @db.VarChar(255)
+  summary     String        @db.VarChar(500) // Brief summary for cards/previews
+  content     String        @db.LongText     // Full markdown/sanitized text
+  
+  status      PostStatus    @default(PUBLISHED)
+  isPinned    Boolean       @default(false)
+  viewCount   Int           @default(0)
+  
+  publishedAt DateTime      @default(now())
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  // Relationships
+  report      Report?       @relation(fields: [reportId], references: [id], onDelete: SetNull)
+  author      User          @relation("AuthoredPosts", fields: [authorId], references: [id], onDelete: Cascade)
+  media       PostMedia[]
+  comments    Comment[]
+  likes       PostLike[]
+  bookmarks   PostBookmark[]
+  shares      PostShare[]
+
+  @@index([status, publishedAt])
+  @@index([category])
+  @@index([severity])
+  @@index([isPinned])
+}
+
+model PostMedia {
+  id        String   @id @default(cuid())
+  postId    String
+  mediaUrl  String   @db.VarChar(512)
+  mediaType String   @default("IMAGE") @db.VarChar(50)
+  caption   String?  @db.VarChar(255)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([postId])
+}
+
+model Comment {
+  id        String    @id @default(cuid())
+  postId    String
+  userId    String
+  parentId  String?   // Allows nested/threaded replies
+  content   String    @db.Text
+  isDeleted Boolean   @default(false)
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent    Comment?      @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]     @relation("CommentReplies")
+
+  @@index([postId, createdAt])
+  @@index([userId])
+  @@index([parentId])
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostBookmark {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+}
+
+model PostShare {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String?  // Can be anonymous share
+  channel   String?  @db.VarChar(50) // "TELEGRAM", "FACEBOOK", "COPY_LINK", etc.
+  createdAt DateTime @default(now())
+
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user      User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt])
+}
+
+// ==========================================
+// 5. INSTANT SCANNER & AI ENGINE
+// ==========================================
+
+enum ScanType {
+  URL
+  TEXT
+  IMAGE
+  QR_CODE
+  PHONE_NUMBER
+  BANK_ACCOUNT
+  SOCIAL_PROFILE
+}
+
+enum RiskLevel {
+  SAFE         // Low/no threat detected
+  SUSPICIOUS   // Some scam markers present
+  HIGH_RISK    // Strong scam patterns matching known scams
+  DANGEROUS    // Confirmed malware, phishing, or blacklisted entity
+}
+
+model ScanRequest {
+  id         String      @id @default(cuid())
+  userId     String?     // Optional for guest/anonymous scans
+  ipHash     String?     @db.VarChar(64) // For rate-limiting & abuse prevention
+  scanType   ScanType
+  inputData  String?     @db.Text        // Text, URL, phone number, raw content
+  fileUrl    String?     @db.VarChar(512)// Image or document URL if uploaded
+  
+  createdAt  DateTime    @default(now())
+
+  // Relationships
+  user       User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+  result     ScanResult?
+  feedback   ScanFeedback[]
+
+  @@index([userId, createdAt])
+  @@index([scanType])
+  @@index([ipHash, createdAt])
+}
+
+model ScanResult {
+  id                   String     @id @default(cuid())
+  scanId               String     @unique
+  riskLevel            RiskLevel
+  riskScore            Int        // 0 to 100
+  confidence           Float      // 0.0 to 1.0
+  summary              String     @db.Text
+  
+  // Detailed diagnostic payloads
+  detectedThreats      Json?      // List of detected flags e.g. ["URGENCY_PHRASING", "KNOWN_SCAM_DOMAIN"]
+  ruleEngineFindings   Json?      // Rule-based results
+  aiAnalysisDetails    Json?      // Contextual LLM / OCR breakdown
+  
+  createdAt            DateTime   @default(now())
+
+  scan                 ScanRequest @relation(fields: [scanId], references: [id], onDelete: Cascade)
+
+  @@index([riskLevel])
+  @@index([createdAt])
+}
+
+enum FeedbackRating {
+  ACCURATE
+  FALSE_POSITIVE
+  FALSE_NEGATIVE
+}
+
+model ScanFeedback {
+  id        String         @id @default(cuid())
+  scanId    String
+  userId    String?
+  rating    FeedbackRating
+  comment   String?        @db.VarChar(500)
+  createdAt DateTime       @default(now())
+
+  scan      ScanRequest    @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  user      User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([scanId])
 }

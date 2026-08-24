@@ -9,7 +9,8 @@ const tokenCookieOptions = {
   path: '/',
 }
 
-const signToken = (userId, tokenVersion) => jwt.sign({ sub: userId, tokenVersion }, env.jwtSecret, { expiresIn: env.jwtExpiresIn })
+const signToken = (userId, tokenVersion, role = 'USER') =>
+  jwt.sign({ sub: userId, tokenVersion, role }, env.jwtSecret, { expiresIn: env.jwtExpiresIn })
 
 const publicUser = (user) => ({
   id: user.id,
@@ -17,6 +18,9 @@ const publicUser = (user) => ({
   name: user.name,
   phoneNumber: user.phone_num,
   age: user.age,
+  avatarUrl: user.avatarUrl,
+  role: user.role,
+  status: user.status,
   createdAt: user.createdAt,
   updatedAt: user.updatedAt,
 })
