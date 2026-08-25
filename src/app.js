@@ -6,6 +6,9 @@ import { fileURLToPath } from 'node:url'
 import env from './config/env.js'
 import authRoutes from './routes/auth.routes.js'
 import reportRoutes from './routes/report.routes.js'
+import communityRoutes from './routes/community.routes.js'
+import commentRoutes from './routes/comment.routes.js'
+import adminRoutes from './routes/admin.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 
 const swaggerSpecPath = fileURLToPath(new URL('../swagger.yaml', import.meta.url))
@@ -185,6 +188,9 @@ function createApp() {
   // API Routes
   app.use('/api/v1/auth', authRoutes)
   app.use('/api/v1/reports', reportRoutes)
+  app.use('/api/v1/posts', communityRoutes)
+  app.use('/api/v1/comments', commentRoutes)
+  app.use('/api/v1/admin', adminRoutes)
 
   app.use(notFoundHandler)
   app.use(errorHandler)

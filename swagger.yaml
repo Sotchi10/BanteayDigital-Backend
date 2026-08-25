@@ -10,6 +10,12 @@ tags:
     description: User registration, login, profile, and session management
   - name: Reports
     description: Scam report submission, retrieval, updates, and evidence management
+  - name: Community
+    description: Public community threat radar, posts, likes, bookmarks, and external social shares
+  - name: Comments
+    description: 1-level threaded discussion comments and replies
+  - name: Admin
+    description: Report verification queue, post publishing, and community management
 
 paths:
   # ==========================================
@@ -470,6 +476,302 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  # ==========================================
+  # COMMUNITY ENDPOINTS
+  # ==========================================
+  /api/v1/posts:
+    get:
+      tags: [Community]
+      summary: List published community posts
+      description: Returns verified scam alerts and security posts. Accessible to guests and logged-in users. Enriches with `isLikedByMe` and `isBookmarkedByMe` if authenticated.
+      operationId: listCommunityPosts
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: category
+          in: query
+          description: Filter by scam category
+          schema: { type: string }
+        - name: severity
+          in: query
+          description: Filter by severity level (CRITICAL, HIGH, MEDIUM, LOW, INFO)
+          schema: { type: string }
+        - name: search
+          in: query
+          description: Search term matching title or content
+          schema: { type: string }
+        - name: sortBy
+          in: query
+          description: Sort ordering (latest, popular, critical)
+          schema: { type: string, enum: [latest, popular, critical], default: latest }
+        - name: page
+          in: query
+          schema: { type: integer, default: 1 }
+        - name: limit
+          in: query
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: List of published community posts.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/v1/posts/{id}:
+    get:
+      tags: [Community]
+      summary: Get community post details
+      description: Returns full content, threat indicators, public media gallery, and engagement statistics. Atomically increments view counter.
+      operationId: getCommunityPost
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Post details.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/posts/{id}/likes:
+    get:
+      tags: [Community]
+      summary: Get users who liked a post
+      description: Returns the list of users who liked the post for the Likes Modal.
+      operationId: getPostLikes
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: List of likes.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/posts/{id}/like:
+    post:
+      tags: [Community]
+      summary: Toggle like on a community post
+      operationId: togglePostLike
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Like status toggled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/posts/{id}/bookmark:
+    post:
+      tags: [Community]
+      summary: Toggle bookmark / save alert
+      operationId: togglePostBookmark
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Bookmark status toggled.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/posts/{id}/comments:
+    get:
+      tags: [Comments]
+      summary: Get 1-level threaded comments for a post
+      operationId: getPostComments
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Threaded comments list.
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    post:
+      tags: [Comments]
+      summary: Post a comment or reply to a post
+      description: Add a top-level comment or a 1-level reply (via `parentId`).
+      operationId: addPostComment
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, minLength: 1, maxLength: 2000 }
+                parentId: { type: string, nullable: true }
+      responses:
+        '201':
+          description: Comment created.
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /api/v1/comments/{id}:
+    patch:
+      tags: [Comments]
+      summary: Edit own comment
+      operationId: editComment
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        '200':
+          description: Comment updated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      tags: [Comments]
+      summary: Delete own comment (or admin moderation)
+      operationId: deleteComment
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Comment deleted.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/v1/posts/{id}/share:
+    post:
+      tags: [Community]
+      summary: Track external social share
+      description: Increments external share metrics for Cambodia channels (Telegram, Facebook, Messenger, Copy Link).
+      operationId: trackPostShare
+      security:
+        - {}
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                channel:
+                  type: string
+                  enum: [TELEGRAM, FACEBOOK, MESSENGER, COPY_LINK, OTHER]
+      responses:
+        '200':
+          description: Share recorded.
+
+  # ==========================================
+  # ADMIN REVIEW & COMMUNITY MANAGEMENT
+  # ==========================================
+  /api/v1/admin/reports/{id}/review:
+    patch:
+      tags: [Admin]
+      summary: Review report, edit caption, and publish as community post
+      description: Allows Admin to approve/reject reports, edit the public title/description, and publish to the community feed.
+      operationId: adminReviewReport
+      security:
+        - cookieAuth: []
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [APPROVED, REJECTED, IN_REVIEW] }
+                reviewNote: { type: string }
+                publishToCommunity: { type: boolean, default: true }
+                postTitle: { type: string }
+                postSummary: { type: string }
+                postContent: { type: string }
+                severity: { type: string, enum: [CRITICAL, HIGH, MEDIUM, LOW, INFO], default: HIGH }
+                category: { type: string }
+                isPinned: { type: boolean }
+                publicEvidenceIds: { type: array, items: { type: string } }
+      responses:
+        '200':
+          description: Report reviewed and community post updated.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
 # ==========================================
 # COMPONENTS & SCHEMAS
 # ==========================================
@@ -551,7 +853,7 @@ components:
         avatarUrl: { type: string, format: uri, nullable: true }
         role:
           type: string
-          enum: [USER, MODERATOR, ADMIN]
+          enum: [USER, ADMIN]
           example: USER
         status:
           type: string

@@ -124,7 +124,7 @@ const getMyReports = async ({ userId, query }) => {
 }
 
 const getReportById = async ({ id, userAuth }) => {
-  const isStaff = userAuth.role === 'ADMIN' || userAuth.role === 'MODERATOR'
+  const isStaff = userAuth.role === 'ADMIN'
 
   const report = await prisma.report.findUnique({
     where: { id },
@@ -163,7 +163,7 @@ const getReportById = async ({ id, userAuth }) => {
 }
 
 const updateReport = async ({ id, userAuth, data }) => {
-  const isStaff = userAuth.role === 'ADMIN' || userAuth.role === 'MODERATOR'
+  const isStaff = userAuth.role === 'ADMIN'
 
   const existingReport = await prisma.report.findUnique({
     where: { id },
@@ -224,7 +224,7 @@ const updateReport = async ({ id, userAuth, data }) => {
 }
 
 const deleteReport = async ({ id, userAuth }) => {
-  const isStaff = userAuth.role === 'ADMIN' || userAuth.role === 'MODERATOR'
+  const isStaff = userAuth.role === 'ADMIN'
 
   const existingReport = await prisma.report.findUnique({
     where: { id },
@@ -264,7 +264,7 @@ const deleteReport = async ({ id, userAuth }) => {
 }
 
 const addReportEvidence = async ({ reportId, userAuth, evidenceItems }) => {
-  const isStaff = userAuth.role === 'ADMIN' || userAuth.role === 'MODERATOR'
+  const isStaff = userAuth.role === 'ADMIN'
 
   const existingReport = await prisma.report.findUnique({
     where: { id: reportId },
@@ -302,7 +302,7 @@ const addReportEvidence = async ({ reportId, userAuth, evidenceItems }) => {
 }
 
 const deleteReportEvidence = async ({ reportId, evidenceId, userAuth }) => {
-  const isStaff = userAuth.role === 'ADMIN' || userAuth.role === 'MODERATOR'
+  const isStaff = userAuth.role === 'ADMIN'
 
   const evidence = await prisma.reportEvidence.findUnique({
     where: { id: evidenceId },

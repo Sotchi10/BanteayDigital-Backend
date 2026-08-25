@@ -19,7 +19,7 @@ test('requireRole blocks unauthenticated request', () => {
 })
 
 test('requireRole blocks user with insufficient role', () => {
-  const middleware = requireRole('ADMIN', 'MODERATOR')
+  const middleware = requireRole('ADMIN')
   let receivedError = null
 
   const req = { auth: { userId: 'user-1', role: 'USER' } }
@@ -35,7 +35,7 @@ test('requireRole blocks user with insufficient role', () => {
 })
 
 test('requireRole permits user with authorized role', () => {
-  const middleware = requireRole('ADMIN', 'MODERATOR')
+  const middleware = requireRole('ADMIN')
   let calledNext = false
   let receivedError = null
 
