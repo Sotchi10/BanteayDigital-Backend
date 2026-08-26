@@ -6,7 +6,7 @@ import prisma from '../config/database.js'
 const extractToken = (request) => {
   const authorization = request.get('authorization')
   const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined
-  return request.cookies.token || bearerToken
+  return bearerToken || request.cookies.token
 }
 
 const requireAuth = async (request, _response, next) => {
@@ -80,4 +80,4 @@ const optionalAuth = async (request, _response, next) => {
 }
 
 export default requireAuth
-export { optionalAuth, requireAuth }
+export { extractToken, optionalAuth, requireAuth }
