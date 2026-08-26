@@ -5,9 +5,9 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import env from './config/env.js'
 import authRoutes from './routes/auth.routes.js'
+import submissionRoutes from './routes/submission.routes.js'
 import reportRoutes from './routes/report.routes.js'
 import communityRoutes from './routes/community.routes.js'
-import commentRoutes from './routes/comment.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 
@@ -165,16 +165,14 @@ const swaggerUiPage = `<!doctype html>
   </body>
 </html>`
 
-function createApp() {
-  const app = express()
-
+function configureMiddleware(app) {
   app.use(cors({ origin: env.clientOrigins, credentials: true }))
   app.use(express.json())
   app.use(cookieParser())
-
-  // Serve static uploads
   app.use('/uploads', express.static(uploadsPath))
+}
 
+function registerDocumentationRoutes(app) {
   app.get('/api/health', (_request, response) => {
     response.status(200).json({ status: 'ok' })
   })
@@ -186,16 +184,28 @@ function createApp() {
   app.get(['/api-doc', '/api-docs'], (_request, response) => {
     response.type('html').send(swaggerUiPage)
   })
+}
 
-  // API Routes
+function registerApiRoutes(app) {
   app.use('/api/v1/auth', authRoutes)
+  app.use('/api/v1/scam-submissions', submissionRoutes)
   app.use('/api/v1/reports', reportRoutes)
-  app.use('/api/v1/posts', communityRoutes)
-  app.use('/api/v1/comments', commentRoutes)
   app.use('/api/v1/admin', adminRoutes)
+  app.use('/api/v1/community/posts', communityRoutes)
+}
 
+function registerErrorHandlers(app) {
   app.use(notFoundHandler)
   app.use(errorHandler)
+}
+
+function createApp() {
+  const app = express()
+
+  configureMiddleware(app)
+  registerDocumentationRoutes(app)
+  registerApiRoutes(app)
+  registerErrorHandlers(app)
 
   return app
 }

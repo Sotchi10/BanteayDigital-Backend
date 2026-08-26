@@ -26,7 +26,10 @@ const me = asyncHandler(async (request, response) => {
 
 const logout = asyncHandler(async (request, response) => {
   await revokeUserTokens(request.auth.userId)
-  response.clearCookie('token', { ...tokenCookieOptions, maxAge: undefined }).status(200).json({ message: 'Logged out successfully' })
+  response
+    .clearCookie('token', { ...tokenCookieOptions, maxAge: undefined })
+    .status(200)
+    .json({ message: 'Logged out successfully' })
 })
 
 export { login, logout, me, register }

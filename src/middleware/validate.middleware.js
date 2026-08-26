@@ -1,14 +1,32 @@
 import ApiError from '../utils/api-error.js'
 
-/**
- * Validate request body, query, or params with a Zod schema.
- *
- * Supports:
- * - validate(schema) -> validates request.body (default)
- * - validate(schema, 'query') -> validates request.query
- * - validate(schema, 'params') -> validates request.params
- * - validate({ body?: schema, query?: schema, params?: schema })
- */
+const applyParsedValue = (request, source, data) => {
+  const target = request[source]
+
+  if (source === 'query') {
+    try {
+      Object.defineProperty(request, source, {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: data,
+      })
+      return
+    } catch {
+    }
+  }
+
+  if (target && typeof target === 'object') {
+    for (const key of Object.keys(target)) {
+      delete target[key]
+    }
+    Object.assign(target, data)
+    return
+  }
+
+  request[source] = data
+}
+
 const validate = (schema, source = 'body') => (request, _response, next) => {
   if (schema && typeof schema === 'object' && ('body' in schema || 'query' in schema || 'params' in schema)) {
     if (schema.params) {
@@ -16,21 +34,21 @@ const validate = (schema, source = 'body') => (request, _response, next) => {
       if (!parsed.success) {
         return next(new ApiError(400, 'Invalid route parameters', parsed.error.flatten().fieldErrors))
       }
-      request.params = parsed.data
+      applyParsedValue(request, 'params', parsed.data)
     }
     if (schema.query) {
       const parsed = schema.query.safeParse(request.query)
       if (!parsed.success) {
         return next(new ApiError(400, 'Invalid query parameters', parsed.error.flatten().fieldErrors))
       }
-      request.query = parsed.data
+      applyParsedValue(request, 'query', parsed.data)
     }
     if (schema.body) {
       const parsed = schema.body.safeParse(request.body)
       if (!parsed.success) {
         return next(new ApiError(400, 'Invalid request data', parsed.error.flatten().fieldErrors))
       }
-      request.body = parsed.data
+      applyParsedValue(request, 'body', parsed.data)
     }
     return next()
   }
@@ -42,7 +60,7 @@ const validate = (schema, source = 'body') => (request, _response, next) => {
     return next(new ApiError(400, `Invalid request ${source}`, parsed.error.flatten().fieldErrors))
   }
 
-  request[source] = parsed.data
+  applyParsedValue(request, source, parsed.data)
   return next()
 }
 

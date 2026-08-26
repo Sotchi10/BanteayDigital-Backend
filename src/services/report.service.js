@@ -1,348 +1,96 @@
-import fs from 'node:fs'
-import path from 'node:path'
 import prisma from '../config/database.js'
 import ApiError from '../utils/api-error.js'
 
-const sanitizeIndicatorValue = (type, value) => {
-  const trimmed = value.trim()
-  if (type === 'DOMAIN' || type === 'URL' || type === 'EMAIL') {
-    return trimmed.toLowerCase()
-  }
-  return trimmed
+const reportInclude = {
+  submission: { select: { id: true, userId: true, title: true, content: true, sourceUrl: true, analysisStatus: true, riskLevel: true, riskScore: true, analysisSummary: true, createdAt: true } },
+  communityPost: { select: { id: true, title: true, publishedAt: true } },
 }
 
-const createReport = async ({ userId, data }) => {
-  const {
-    title,
-    description,
-    category,
-    financialLossAmount,
-    currency = 'USD',
-    scammerContact,
-    incidentDate,
-    indicators = [],
-  } = data
-
-  const report = await prisma.$transaction(async (tx) => {
-    const createdReport = await tx.report.create({
-      data: {
-        userId,
-        title,
-        description,
-        category,
-        financialLossAmount,
-        currency,
-        scammerContact,
-        incidentDate,
-        status: 'PENDING',
-      },
-    })
-
-    if (indicators.length > 0) {
-      for (const item of indicators) {
-        const normalizedVal = sanitizeIndicatorValue(item.type, item.value)
-        await tx.scamIndicator.upsert({
-          where: { value: normalizedVal },
-          create: {
-            type: item.type,
-            value: normalizedVal,
-            sourceReportId: createdReport.id,
-            notes: item.notes,
-            riskScore: 80,
-            matchCount: 1,
-            isBlacklisted: true,
-          },
-          update: {
-            matchCount: { increment: 1 },
-            notes: item.notes || undefined,
-          },
-        })
-      }
-    }
-
-    return tx.report.findUnique({
-      where: { id: createdReport.id },
-      include: {
-        evidence: true,
-        extractedIndicators: true,
-      },
-    })
-  })
-
-  return report
-}
-
-const getMyReports = async ({ userId, query }) => {
-  const {
-    status,
-    category,
-    search,
-    page = 1,
-    limit = 20,
-    sortBy = 'createdAt',
-    order = 'desc',
-  } = query
-
-  const skip = (page - 1) * limit
-
-  const where = {
-    userId,
-    ...(status && { status }),
-    ...(category && { category }),
-    ...(search && {
-      OR: [
-        { title: { contains: search } },
-        { description: { contains: search } },
-        { scammerContact: { contains: search } },
-      ],
-    }),
-  }
-
+const pageResult = async (where, query, include = reportInclude) => {
+  const { page, limit } = query
   const [reports, total] = await Promise.all([
-    prisma.report.findMany({
-      where,
-      skip,
-      take: limit,
-      orderBy: { [sortBy]: order },
-      include: {
-        evidence: true,
-        extractedIndicators: true,
-      },
-    }),
-    prisma.report.count({ where }),
+    prisma.scamReport.findMany({ where, include, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+    prisma.scamReport.count({ where }),
   ])
-
-  return {
-    reports,
-    meta: {
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit) || 1,
-    },
-  }
+  return { reports, meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) } }
 }
 
-const getReportById = async ({ id, userAuth }) => {
-  const isStaff = userAuth.role === 'ADMIN'
+const listUserReports = ({ userId, query }) => pageResult({ submission: { is: { userId } }, ...(query.status && { status: query.status }) }, query)
 
-  const report = await prisma.report.findUnique({
-    where: { id },
-    include: {
-      evidence: true,
-      extractedIndicators: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          avatarUrl: true,
-          phone_num: isStaff,
-          email: isStaff,
-        },
-      },
-      reviewLogs: isStaff
-        ? {
-            include: {
-              admin: { select: { id: true, name: true, role: true } },
-            },
-            orderBy: { createdAt: 'desc' },
-          }
-        : false,
-    },
-  })
-
-  if (!report) {
-    throw new ApiError(404, 'Report not found')
-  }
-
-  if (report.userId !== userAuth.userId && !isStaff) {
-    throw new ApiError(403, 'You do not have permission to view this report')
-  }
-
+const getUserReport = async ({ id, userId }) => {
+  const report = await prisma.scamReport.findFirst({ where: { id, submission: { is: { userId } } }, include: reportInclude })
+  if (!report) throw new ApiError(404, 'Scam report not found')
   return report
 }
 
-const updateReport = async ({ id, userAuth, data }) => {
-  const isStaff = userAuth.role === 'ADMIN'
+const listAdminReports = ({ query }) => pageResult({
+  ...(query.status && { status: query.status }),
+  ...(query.userId && { submission: { is: { userId: query.userId } } }),
+}, query, {
+  ...reportInclude,
+  reviewedBy: { select: { id: true, name: true, email: true } },
+})
 
-  const existingReport = await prisma.report.findUnique({
-    where: { id },
-  })
-
-  if (!existingReport) {
-    throw new ApiError(404, 'Report not found')
-  }
-
-  if (existingReport.userId !== userAuth.userId && !isStaff) {
-    throw new ApiError(403, 'You do not have permission to modify this report')
-  }
-
-  if (!isStaff && existingReport.status !== 'PENDING') {
-    throw new ApiError(400, 'Cannot edit a report that is currently in review or already finalized')
-  }
-
-  const { indicators, ...reportFields } = data
-
-  const updated = await prisma.$transaction(async (tx) => {
-    const report = await tx.report.update({
-      where: { id },
-      data: reportFields,
-    })
-
-    if (indicators && indicators.length > 0) {
-      for (const item of indicators) {
-        const normalizedVal = sanitizeIndicatorValue(item.type, item.value)
-        await tx.scamIndicator.upsert({
-          where: { value: normalizedVal },
-          create: {
-            type: item.type,
-            value: normalizedVal,
-            sourceReportId: id,
-            notes: item.notes,
-            riskScore: 80,
-            matchCount: 1,
-            isBlacklisted: true,
-          },
-          update: {
-            matchCount: { increment: 1 },
-            notes: item.notes || undefined,
-          },
-        })
-      }
-    }
-
-    return tx.report.findUnique({
-      where: { id },
-      include: {
-        evidence: true,
-        extractedIndicators: true,
-      },
-    })
-  })
-
-  return updated
+const getAdminReport = async ({ id }) => {
+  const report = await prisma.scamReport.findUnique({ where: { id }, include: { ...reportInclude, reviewedBy: { select: { id: true, name: true, email: true } } } })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  return report
 }
 
-const deleteReport = async ({ id, userAuth }) => {
-  const isStaff = userAuth.role === 'ADMIN'
+const reviewReport = async ({ id, adminId, status, reviewNote }) => {
+  const report = await prisma.scamReport.findUnique({ where: { id }, include: { submission: true, communityPost: true } })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  if (report.status !== 'PENDING') throw new ApiError(409, 'Scam report has already been reviewed')
 
-  const existingReport = await prisma.report.findUnique({
-    where: { id },
-    include: { evidence: true },
-  })
-
-  if (!existingReport) {
-    throw new ApiError(404, 'Report not found')
-  }
-
-  if (existingReport.userId !== userAuth.userId && userAuth.role !== 'ADMIN') {
-    throw new ApiError(403, 'You do not have permission to delete this report')
-  }
-
-  if (userAuth.role === 'USER' && existingReport.status !== 'PENDING') {
-    throw new ApiError(400, 'Cannot delete a report that is currently in review or already finalized')
-  }
-
-  // Remove evidence files from disk if locally hosted
-  if (existingReport.evidence && existingReport.evidence.length > 0) {
-    for (const item of existingReport.evidence) {
-      if (item.fileUrl && item.fileUrl.startsWith('/uploads/')) {
-        const localPath = path.resolve(process.cwd(), item.fileUrl.replace(/^\//, ''))
-        if (fs.existsSync(localPath)) {
-          try {
-            fs.unlinkSync(localPath)
-          } catch {
-            // ignore unlink errors
-          }
-        }
-      }
-    }
-  }
-
-  await prisma.report.delete({ where: { id } })
-  return { message: 'Report deleted successfully' }
-}
-
-const addReportEvidence = async ({ reportId, userAuth, evidenceItems }) => {
-  const isStaff = userAuth.role === 'ADMIN'
-
-  const existingReport = await prisma.report.findUnique({
-    where: { id: reportId },
-  })
-
-  if (!existingReport) {
-    throw new ApiError(404, 'Report not found')
-  }
-
-  if (existingReport.userId !== userAuth.userId && !isStaff) {
-    throw new ApiError(403, 'You do not have permission to attach evidence to this report')
-  }
-
-  if (!isStaff && existingReport.status !== 'PENDING') {
-    throw new ApiError(400, 'Cannot add evidence to a report that is currently in review or finalized')
-  }
-
-  const createdEvidence = await prisma.$transaction(
-    evidenceItems.map((item) =>
-      prisma.reportEvidence.create({
-        data: {
-          reportId,
-          fileUrl: item.fileUrl,
-          fileName: item.fileName,
-          fileType: item.fileType || 'IMAGE',
-          fileSize: item.fileSize || 0,
-          mimeType: item.mimeType,
-          isPublicSafe: Boolean(item.isPublicSafe),
-        },
+  return prisma.$transaction(async (tx) => {
+    const updatedReport = await tx.scamReport.update({ where: { id }, data: { status, reviewNote: reviewNote || null, reviewedById: adminId, reviewedAt: new Date() } })
+    let communityPost = null
+    if (status === 'APPROVED') {
+      const content = report.submission.analysisSummary || report.submission.content
+      const title = report.submission.title || 'Community scam alert'
+      communityPost = await tx.communityPost.create({
+        data: { reportId: report.id, authorId: adminId, title, summary: content.slice(0, 500), content },
       })
-    )
-  )
-
-  return createdEvidence
+    }
+    return { report: updatedReport, communityPost }
+  })
 }
 
-const deleteReportEvidence = async ({ reportId, evidenceId, userAuth }) => {
-  const isStaff = userAuth.role === 'ADMIN'
+// Intended for the future analysis service. It deliberately performs no analysis.
+const createReportForCompletedSubmission = async (submissionId) => {
+  const submission = await prisma.scamSubmission.findUnique({ where: { id: submissionId }, select: { id: true, analysisStatus: true } })
+  if (!submission) throw new ApiError(404, 'Scam submission not found')
+  if (submission.analysisStatus !== 'COMPLETED') throw new ApiError(409, 'Submission analysis is not complete')
+  return prisma.scamReport.upsert({ where: { submissionId }, create: { submissionId }, update: {} })
+}
 
-  const evidence = await prisma.reportEvidence.findUnique({
-    where: { id: evidenceId },
-    include: { report: true },
+const completeSubmissionAndCreateReport = async (submissionId) => prisma.$transaction(async (transaction) => {
+  const submission = await transaction.scamSubmission.findUnique({
+    where: { id: submissionId },
+    select: { id: true, analysisStatus: true },
   })
 
-  if (!evidence || evidence.reportId !== reportId) {
-    throw new ApiError(404, 'Evidence not found for this report')
+  if (!submission) {
+    throw new ApiError(404, 'Scam submission not found')
   }
 
-  if (evidence.report.userId !== userAuth.userId && !isStaff) {
-    throw new ApiError(403, 'You do not have permission to delete this evidence')
+  if (submission.analysisStatus === 'FAILED') {
+    throw new ApiError(409, 'A failed submission cannot be completed')
   }
 
-  if (!isStaff && evidence.report.status !== 'PENDING') {
-    throw new ApiError(400, 'Cannot delete evidence from a report that is in review or finalized')
+  if (submission.analysisStatus !== 'COMPLETED') {
+    await transaction.scamSubmission.update({
+      where: { id: submissionId },
+      data: { analysisStatus: 'COMPLETED' },
+    })
   }
 
-  // Delete local file if present
-  if (evidence.fileUrl && evidence.fileUrl.startsWith('/uploads/')) {
-    const localPath = path.resolve(process.cwd(), evidence.fileUrl.replace(/^\//, ''))
-    if (fs.existsSync(localPath)) {
-      try {
-        fs.unlinkSync(localPath)
-      } catch {
-        // ignore unlink error
-      }
-    }
-  }
+  return transaction.scamReport.upsert({
+    where: { submissionId },
+    create: { submissionId },
+    update: {},
+    include: reportInclude,
+  })
+})
 
-  await prisma.reportEvidence.delete({ where: { id: evidenceId } })
-  return { message: 'Evidence deleted successfully' }
-}
-
-export {
-  createReport,
-  getMyReports,
-  getReportById,
-  updateReport,
-  deleteReport,
-  addReportEvidence,
-  deleteReportEvidence,
-}
+export { completeSubmissionAndCreateReport, createReportForCompletedSubmission, getAdminReport, getUserReport, listAdminReports, listUserReports, reviewReport }
