@@ -138,12 +138,14 @@ const swaggerUiPage = `<!doctype html>
               if (typeof body === 'string') {
                 try { body = JSON.parse(body) } catch(e) {}
               }
-              if (body && body.token) {
-                const token = body.token
-                sessionStorage.setItem('bd_swagger_token', token)
-                window.ui.preauthorizeApiKey('bearerAuth', token)
-                window.ui.preauthorizeApiKey('cookieAuth', token)
-                updateAuthUI(token, body.user)
+              if (body && (body.user || body.token)) {
+                if (body.token) {
+                  const token = body.token
+                  sessionStorage.setItem('bd_swagger_token', token)
+                  window.ui.preauthorizeApiKey('bearerAuth', token)
+                  window.ui.preauthorizeApiKey('cookieAuth', token)
+                }
+                updateAuthUI(true, body.user)
               }
             }
           } catch(e) {

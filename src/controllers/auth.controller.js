@@ -5,7 +5,6 @@ import { publicUser, signToken, tokenCookieOptions } from '../utils/auth.js'
 const sendAuthenticatedUser = (response, statusCode, user) => {
   const token = signToken(user.id, user.tokenVersion, user.role)
   response.status(statusCode).cookie('token', token, tokenCookieOptions).json({
-    token,
     user: publicUser(user),
   })
 }

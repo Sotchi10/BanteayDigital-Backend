@@ -1069,11 +1069,8 @@ components:
 
     AuthenticatedUserResponse:
       type: object
-      required: [token, user]
+      required: [user]
       properties:
-        token:
-          type: string
-          description: JWT Bearer authentication token
         user: { $ref: '#/components/schemas/User' }
 
     MessageResponse:
