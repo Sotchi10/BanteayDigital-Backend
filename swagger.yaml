@@ -1,519 +1,212 @@
 openapi: 3.0.3
 info:
   title: BanteayDigital API
-  version: 2.0.0
+  version: 3.0.0
   description: |
-    API for the scam-submission workflow: users submit suspected scams, a future
-    analysis service completes them, reports are reviewed by an administrator,
-    and approved reports become public community posts.
-
-    Authentication endpoints issue an HTTP-only `token` cookie. Protected calls
-    accept that cookie or an `Authorization: Bearer <JWT>` header.
+    Users privately scan suspicious content, explicitly request moderation, and
+    administrators separately publish sanitized community safety alerts. The current
+    scan engine is deterministic; Qdrant retrieval and grounded AI extend this scan contract.
 servers:
   - url: http://localhost:3000
-    description: Local development server
 tags:
   - name: System
   - name: Authentication
-  - name: Scam Submissions
+  - name: Scans
   - name: Reports
   - name: Admin Reports
   - name: Community Posts
 components:
   securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: JWT
-      description: Alternatively, log in first and send the session cookie automatically.
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
   parameters:
-    Id:
-      name: id
-      in: path
-      required: true
-      description: Resource ID.
-      schema: { type: string, minLength: 1 }
-    UserId:
-      name: userId
-      in: path
-      required: true
-      description: User ID.
-      schema: { type: string, minLength: 1 }
-    Page:
-      name: page
-      in: query
-      description: One-based page number.
-      schema: { type: integer, minimum: 1, default: 1 }
-    Limit:
-      name: limit
-      in: query
-      description: Number of results per page.
-      schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
-    ReportStatus:
-      name: status
-      in: query
-      description: Filter reports by review status.
-      schema: { $ref: '#/components/schemas/ReportStatus' }
-    ReportUserId:
-      name: userId
-      in: query
-      description: Administrator-only filter for reports created from this user's submissions.
-      schema: { type: string, minLength: 1 }
+    Id: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
+    Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
   schemas:
-    RegisterInput:
+    ScanInput:
       type: object
-      required: [password]
-      description: At least one of `email` or `phoneNumber` is required.
+      required: [type, value]
       properties:
-        email: { type: string, format: email, maxLength: 255 }
-        phoneNumber: { type: string, minLength: 3, maxLength: 30 }
-        password: { type: string, format: password, minLength: 8, maxLength: 72 }
-        name: { type: string, minLength: 1, maxLength: 100 }
-        age: { type: integer, minimum: 13, maximum: 120 }
-        avatarUrl: { type: string, format: uri, maxLength: 512 }
-      example:
-        email: user@example.com
-        password: secure-password
-        name: Dara Sok
-        age: 24
-    LoginInput:
+        type: { type: string, enum: [TEXT, URL] }
+        value: { type: string, minLength: 1, maxLength: 10000 }
+    Scan:
       type: object
-      required: [password]
-      description: Provide exactly one of `email` or `phoneNumber`.
+      required: [id, inputType, rawInput, normalizedInput, findings, assessment, score, createdAt]
       properties:
-        email: { type: string, format: email, maxLength: 255 }
-        phoneNumber: { type: string, minLength: 3, maxLength: 30 }
-        password: { type: string, format: password, minLength: 1, maxLength: 72 }
-      example:
-        email: user@example.com
-        password: secure-password
-    SubmissionInput:
+        id: { type: string }
+        inputType: { type: string, enum: [TEXT, URL] }
+        rawInput: { type: string }
+        normalizedInput: { type: string }
+        findings: { type: array, items: { type: object } }
+        assessment:
+          type: string
+          description: No warning signs is not a guarantee that content is safe.
+          enum: [NO_STRONG_WARNING_SIGNS, CAUTION, SUSPICIOUS, STRONG_SCAM_INDICATORS, UNABLE_TO_ASSESS]
+        score: { type: integer, minimum: 0 }
+        analysisSummary: { type: string, nullable: true }
+        matchedScamCases: { type: array, items: { type: object } }
+        recommendations: { type: array, items: { type: string } }
+        createdAt: { type: string, format: date-time }
+    ReportFromScanInput:
       type: object
-      required: [content]
       properties:
-        title: { type: string, nullable: true, minLength: 3, maxLength: 255 }
-        content: { type: string, minLength: 10, maxLength: 50000 }
-        sourceUrl: { type: string, format: uri, nullable: true, maxLength: 512 }
-      example:
-        title: Suspicious banking message
-        content: I received a message asking me to verify my bank account through a link.
-        sourceUrl: https://example.com/suspicious-message
-    SubmissionUpdateInput:
-      type: object
-      description: Supply at least one editable field. A submission can only be changed while its analysis is pending and it has no report.
-      minProperties: 1
-      properties:
-        title: { type: string, nullable: true, minLength: 3, maxLength: 255 }
-        content: { type: string, minLength: 10, maxLength: 50000 }
-        sourceUrl: { type: string, format: uri, nullable: true, maxLength: 512 }
+        title: { type: string, minLength: 3, maxLength: 255 }
     ReviewInput:
       type: object
       properties:
         reviewNote: { type: string, nullable: true, minLength: 1, maxLength: 2000 }
-      example:
-        reviewNote: Confirmed scam pattern; publish a public warning.
-    User:
+    PublishInput:
       type: object
-      required: [id, role, status, createdAt, updatedAt]
+      required: [title, summary, content]
+      description: Sanitized public content supplied by an administrator; never raw private evidence.
       properties:
-        id: { type: string }
-        email: { type: string, format: email, nullable: true }
-        phoneNumber: { type: string, nullable: true }
-        name: { type: string, nullable: true }
-        age: { type: integer, nullable: true }
-        avatarUrl: { type: string, format: uri, nullable: true }
-        role: { type: string, enum: [USER, ADMIN] }
-        status: { type: string, enum: [ACTIVE, SUSPENDED, BANNED] }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    AnalysisStatus:
-      type: string
-      enum: [PENDING, PROCESSING, COMPLETED, FAILED]
-    RiskLevel:
-      type: string
-      enum: [LOW, MEDIUM, HIGH, CRITICAL]
-    ReportStatus:
-      type: string
-      enum: [PENDING, APPROVED, REJECTED]
-    ReportReference:
-      type: object
-      required: [id, status, createdAt, updatedAt]
-      properties:
-        id: { type: string }
-        status: { $ref: '#/components/schemas/ReportStatus' }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-    Submission:
-      type: object
-      required: [id, userId, content, analysisStatus, createdAt, updatedAt]
-      properties:
-        id: { type: string }
-        userId: { type: string }
-        title: { type: string, nullable: true }
-        content: { type: string }
-        sourceUrl: { type: string, format: uri, nullable: true }
-        analysisStatus: { $ref: '#/components/schemas/AnalysisStatus' }
-        riskLevel:
-          allOf: [{ $ref: '#/components/schemas/RiskLevel' }]
-          nullable: true
-        riskScore: { type: integer, nullable: true }
-        analysisSummary: { type: string, nullable: true }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        report:
-          allOf: [{ $ref: '#/components/schemas/ReportReference' }]
-          nullable: true
-    CommunityPostReference:
-      type: object
-      required: [id, title, publishedAt]
-      properties:
-        id: { type: string }
-        title: { type: string }
-        publishedAt: { type: string, format: date-time }
-    Report:
-      type: object
-      required: [id, submissionId, status, createdAt, updatedAt]
-      properties:
-        id: { type: string }
-        submissionId: { type: string }
-        status: { $ref: '#/components/schemas/ReportStatus' }
-        reviewNote: { type: string, nullable: true }
-        reviewedById: { type: string, nullable: true }
-        reviewedAt: { type: string, format: date-time, nullable: true }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        submission: { $ref: '#/components/schemas/Submission' }
-        communityPost:
-          allOf: [{ $ref: '#/components/schemas/CommunityPostReference' }]
-          nullable: true
-        reviewedBy:
-          allOf: [{ $ref: '#/components/schemas/User' }]
-          nullable: true
-    CommunityPost:
-      type: object
-      required: [id, reportId, authorId, title, summary, content, publishedAt, createdAt, updatedAt]
-      properties:
-        id: { type: string }
-        reportId: { type: string }
-        authorId: { type: string }
-        title: { type: string }
-        summary: { type: string, maxLength: 500 }
-        content: { type: string }
-        publishedAt: { type: string, format: date-time }
-        createdAt: { type: string, format: date-time }
-        updatedAt: { type: string, format: date-time }
-        author:
-          type: object
-          properties:
-            id: { type: string }
-            name: { type: string, nullable: true }
-            avatarUrl: { type: string, format: uri, nullable: true }
-    Pagination:
-      type: object
-      required: [total, page, limit, totalPages]
-      properties:
-        total: { type: integer, minimum: 0 }
-        page: { type: integer, minimum: 1 }
-        limit: { type: integer, minimum: 1 }
-        totalPages: { type: integer, minimum: 1 }
-    AuthResponse:
-      type: object
-      required: [user]
-      properties:
-        user: { $ref: '#/components/schemas/User' }
-    SubmissionResponse:
-      type: object
-      required: [submission]
-      properties:
-        submission: { $ref: '#/components/schemas/Submission' }
-    SubmissionListResponse:
-      type: object
-      required: [submissions, meta]
-      properties:
-        submissions:
-          type: array
-          items: { $ref: '#/components/schemas/Submission' }
-        meta: { $ref: '#/components/schemas/Pagination' }
-    ReportResponse:
-      type: object
-      required: [report]
-      properties:
-        report: { $ref: '#/components/schemas/Report' }
-    ReportListResponse:
-      type: object
-      required: [reports, meta]
-      properties:
-        reports:
-          type: array
-          items: { $ref: '#/components/schemas/Report' }
-        meta: { $ref: '#/components/schemas/Pagination' }
-    ReviewResponse:
-      type: object
-      required: [report]
-      properties:
-        report: { $ref: '#/components/schemas/Report' }
-        communityPost:
-          allOf: [{ $ref: '#/components/schemas/CommunityPost' }]
-          nullable: true
-    CommunityPostResponse:
-      type: object
-      required: [post]
-      properties:
-        post: { $ref: '#/components/schemas/CommunityPost' }
-    CommunityPostListResponse:
-      type: object
-      required: [posts, meta]
-      properties:
-        posts:
-          type: array
-          items: { $ref: '#/components/schemas/CommunityPost' }
-        meta: { $ref: '#/components/schemas/Pagination' }
-    AdminUserActivityResponse:
-      type: object
-      required: [user, submissions, reports]
-      properties:
-        user: { $ref: '#/components/schemas/User' }
-        submissions: { $ref: '#/components/schemas/SubmissionListResponse' }
-        reports: { $ref: '#/components/schemas/ReportListResponse' }
-    MessageResponse:
-      type: object
-      required: [message]
-      properties:
-        message: { type: string }
+        title: { type: string, minLength: 3, maxLength: 255 }
+        summary: { type: string, minLength: 10, maxLength: 500 }
+        content: { type: string, minLength: 10, maxLength: 50000 }
     Error:
       type: object
       required: [message]
-      properties:
-        message: { type: string }
-        details: { type: object, additionalProperties: true }
+      properties: { message: { type: string }, details: { type: object } }
   responses:
-    BadRequest:
-      description: Invalid request data.
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-    Unauthorized:
-      description: Authentication is required or invalid.
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-    Forbidden:
-      description: The authenticated user lacks permission.
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-    NotFound:
-      description: The requested resource does not exist.
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
-    Conflict:
-      description: The requested action conflicts with the resource state.
-      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    BadRequest: { description: Invalid request data. }
+    Unauthorized: { description: Authentication is required or invalid. }
+    Forbidden: { description: Administrator permission is required. }
+    NotFound: { description: Resource not found. }
+    Conflict: { description: Action conflicts with resource state. }
 paths:
   /api/health:
     get:
       tags: [System]
-      summary: Check whether the API is running
-      responses:
-        '200':
-          description: API is healthy.
-          content: { application/json: { schema: { type: object, properties: { status: { type: string, example: ok } } } } }
+      summary: Check API health
+      responses: { '200': { description: API is healthy. } }
   /api/v1/auth/register:
     post:
       tags: [Authentication]
-      summary: Register and sign in a user
-      description: Sets the HTTP-only session cookie on success.
+      summary: Register and start an authenticated session
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/RegisterInput' } } }
-      responses:
-        '201': { description: Registered and authenticated., content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                email: { type: string, format: email }
+                phoneNumber: { type: string }
+                password: { type: string, minLength: 8 }
+                name: { type: string }
+      responses: { '201': { description: Registered and authenticated. }, '400': { $ref: '#/components/responses/BadRequest' } }
   /api/v1/auth/login:
     post:
       tags: [Authentication]
-      summary: Log in with email or phone number
-      description: Sets the HTTP-only session cookie on success.
+      summary: Start an authenticated session
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/LoginInput' } } }
-      responses:
-        '200': { description: Authenticated., content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-  /api/v1/auth/logout:
-    post:
-      tags: [Authentication]
-      security: [{ bearerAuth: [] }]
-      summary: End the current session
-      responses:
-        '200': { description: Logged out., content: { application/json: { schema: { $ref: '#/components/schemas/MessageResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [password]
+              properties:
+                email: { type: string, format: email }
+                phoneNumber: { type: string }
+                password: { type: string }
+      responses: { '200': { description: Authenticated. }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /api/v1/auth/me:
     get:
       tags: [Authentication]
       security: [{ bearerAuth: [] }]
       summary: Get the authenticated user
-      responses:
-        '200': { description: Current user., content: { application/json: { schema: { $ref: '#/components/schemas/AuthResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-  /api/v1/scam-submissions:
+      responses: { '200': { description: User found. }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/v1/auth/logout:
     post:
-      tags: [Scam Submissions]
+      tags: [Authentication]
       security: [{ bearerAuth: [] }]
-      summary: Create a private scam submission
+      summary: End the current session
+      responses: { '200': { description: Logged out. }, '401': { $ref: '#/components/responses/Unauthorized' } }
+  /api/v1/scans:
+    post:
+      tags: [Scans]
+      security: [{ bearerAuth: [] }]
+      summary: Privately scan text or a URL
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionInput' } } }
+        content: { application/json: { schema: { $ref: '#/components/schemas/ScanInput' } } }
       responses:
-        '201': { description: Submission created., content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionResponse' } } } }
+        '201': { description: Scan completed. }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+  /api/v1/scans/{id}:
     get:
-      tags: [Scam Submissions]
+      tags: [Scans]
       security: [{ bearerAuth: [] }]
-      summary: List the current user's submissions
-      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
-      responses:
-        '200': { description: Paginated submission list., content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionListResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-  /api/v1/scam-submissions/{id}:
-    parameters: [{ $ref: '#/components/parameters/Id' }]
-    get:
-      tags: [Scam Submissions]
+      summary: Get the current user's private scan result
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Scan found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/scans/{id}/report:
+    post:
+      tags: [Reports]
       security: [{ bearerAuth: [] }]
-      summary: Get one of the current user's submissions
-      responses:
-        '200': { description: Submission found., content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-    patch:
-      tags: [Scam Submissions]
-      security: [{ bearerAuth: [] }]
-      summary: Update a pending submission
-      requestBody:
-        required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionUpdateInput' } } }
-      responses:
-        '200': { description: Submission updated., content: { application/json: { schema: { $ref: '#/components/schemas/SubmissionResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-    delete:
-      tags: [Scam Submissions]
-      security: [{ bearerAuth: [] }]
-      summary: Delete a pending submission
-      responses:
-        '204': { description: Submission deleted. }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+      summary: Explicitly submit a private scan for moderator review
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ReportFromScanInput' } } } }
+      responses: { '201': { description: Private report created. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/reports:
     get:
       tags: [Reports]
       security: [{ bearerAuth: [] }]
-      summary: List reports for the current user's submissions
-      parameters: [{ $ref: '#/components/parameters/ReportStatus' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
-      responses:
-        '200': { description: Paginated report list., content: { application/json: { schema: { $ref: '#/components/schemas/ReportListResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
+      summary: List the current user's reports
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: Reports found. }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /api/v1/reports/{id}:
     get:
       tags: [Reports]
       security: [{ bearerAuth: [] }]
       summary: Get one of the current user's reports
       parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200': { description: Report found., content: { application/json: { schema: { $ref: '#/components/schemas/ReportResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { $ref: '#/components/responses/NotFound' }
+      responses: { '200': { description: Report found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
   /api/v1/admin/reports:
     get:
       tags: [Admin Reports]
       security: [{ bearerAuth: [] }]
-      summary: List reports for administrator review
-      parameters: [{ $ref: '#/components/parameters/ReportStatus' }, { $ref: '#/components/parameters/ReportUserId' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
-      responses:
-        '200': { description: Paginated report list., content: { application/json: { schema: { $ref: '#/components/schemas/ReportListResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-  /api/v1/admin/submissions/{id}/complete:
-    patch:
-      tags: [Admin Reports]
-      security: [{ bearerAuth: [] }]
-      summary: Mark a submission complete and create its report
-      description: |
-        Administrator-only manual completion action. It creates the report only
-        once; subsequent calls return the existing report. A failed submission
-        cannot be completed.
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200': { description: Submission completed and report available., content: { application/json: { schema: { $ref: '#/components/schemas/ReportResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
-  /api/v1/admin/users/{userId}/activity:
-    get:
-      tags: [Admin Reports]
-      security: [{ bearerAuth: [] }]
-      summary: Get a user's submissions and reports
-      description: Administrator-only activity view. The same pagination settings apply to both result lists.
-      parameters: [{ $ref: '#/components/parameters/UserId' }, { $ref: '#/components/parameters/ReportStatus' }, { $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
-      responses:
-        '200': { description: User activity found., content: { application/json: { schema: { $ref: '#/components/schemas/AdminUserActivityResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-  /api/v1/admin/reports/{id}:
-    get:
-      tags: [Admin Reports]
-      security: [{ bearerAuth: [] }]
-      summary: Get any report, including its reviewer
-      parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200': { description: Report found., content: { application/json: { schema: { $ref: '#/components/schemas/ReportResponse' } } } }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
+      summary: List reports for moderation
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: Reports found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
   /api/v1/admin/reports/{id}/approve:
     patch:
       tags: [Admin Reports]
       security: [{ bearerAuth: [] }]
-      summary: Approve a pending report and publish a community post
+      summary: Approve a report without publishing it
       parameters: [{ $ref: '#/components/parameters/Id' }]
-      requestBody:
-        content: { application/json: { schema: { $ref: '#/components/schemas/ReviewInput' } } }
-      responses:
-        '200': { description: Report approved and community post published., content: { application/json: { schema: { $ref: '#/components/schemas/ReviewResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ReviewInput' } } } }
+      responses: { '200': { description: Report approved. }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/admin/reports/{id}/reject:
     patch:
       tags: [Admin Reports]
       security: [{ bearerAuth: [] }]
-      summary: Reject a pending report
+      summary: Reject a report
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { content: { application/json: { schema: { $ref: '#/components/schemas/ReviewInput' } } } }
+      responses: { '200': { description: Report rejected. }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/admin/reports/{id}/publish:
+    post:
+      tags: [Admin Reports]
+      security: [{ bearerAuth: [] }]
+      summary: Publish sanitized content from an approved report
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody:
-        content: { application/json: { schema: { $ref: '#/components/schemas/ReviewInput' } } }
-      responses:
-        '200': { description: Report rejected., content: { application/json: { schema: { $ref: '#/components/schemas/ReviewResponse' } } } }
-        '400': { $ref: '#/components/responses/BadRequest' }
-        '401': { $ref: '#/components/responses/Unauthorized' }
-        '403': { $ref: '#/components/responses/Forbidden' }
-        '404': { $ref: '#/components/responses/NotFound' }
-        '409': { $ref: '#/components/responses/Conflict' }
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PublishInput' } } }
+      responses: { '201': { description: Community post published. }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/community/posts:
     get:
       tags: [Community Posts]
-      summary: List publicly approved community posts
+      summary: List published community alerts
       parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
-      responses:
-        '200': { description: Paginated public post list., content: { application/json: { schema: { $ref: '#/components/schemas/CommunityPostListResponse' } } } }
+      responses: { '200': { description: Community posts found. } }
   /api/v1/community/posts/{id}:
     get:
       tags: [Community Posts]
-      summary: Get a publicly approved community post
+      summary: Get one published community alert
       parameters: [{ $ref: '#/components/parameters/Id' }]
-      responses:
-        '200': { description: Community post found., content: { application/json: { schema: { $ref: '#/components/schemas/CommunityPostResponse' } } } }
-        '404': { $ref: '#/components/responses/NotFound' }
+      responses: { '200': { description: Community post found. }, '404': { $ref: '#/components/responses/NotFound' } }

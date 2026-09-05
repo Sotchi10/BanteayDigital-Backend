@@ -3,10 +3,12 @@ import env from '../config/env.js'
 import ApiError from '../utils/api-error.js'
 import prisma from '../config/database.js'
 
+let authRepository = prisma
+
 const extractToken = (request) => {
   const authorization = request.get('authorization')
-  const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : undefined
-  return bearerToken || request.cookies.token
+  const bearerToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
+  return bearerToken || request.cookies?.token
 }
 
 const requireAuth = async (request, _response, next) => {
@@ -18,7 +20,7 @@ const requireAuth = async (request, _response, next) => {
 
   try {
     const payload = jwt.verify(token, env.jwtSecret)
-    const user = await prisma.user.findUnique({
+    const user = await authRepository.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, tokenVersion: true, role: true, status: true },
     })
@@ -49,7 +51,7 @@ const requireAuth = async (request, _response, next) => {
 
 /**
  * Optional authentication middleware for endpoints accessible to both
- * guests and logged-in users (e.g., instant scans or public feeds).
+ * guests and logged-in users (for example, public community feeds).
  */
 const optionalAuth = async (request, _response, next) => {
   const token = extractToken(request)
@@ -60,7 +62,7 @@ const optionalAuth = async (request, _response, next) => {
 
   try {
     const payload = jwt.verify(token, env.jwtSecret)
-    const user = await prisma.user.findUnique({
+    const user = await authRepository.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, tokenVersion: true, role: true, status: true },
     })
@@ -79,5 +81,9 @@ const optionalAuth = async (request, _response, next) => {
   return next()
 }
 
+const setAuthRepositoryForTests = (repository) => {
+  authRepository = repository || prisma
+}
+
 export default requireAuth
-export { extractToken, optionalAuth, requireAuth }
+export { extractToken, optionalAuth, requireAuth, setAuthRepositoryForTests }

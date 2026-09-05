@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import prisma from "../src/config/database.js";
 
-test("connects to the configured MySQL database", async (t) => {
+test("connects to the configured MySQL database", { skip: process.env.RUN_DATABASE_TESTS !== 'true' }, async (t) => {
   t.after(async () => {
     await prisma.$disconnect();
   });

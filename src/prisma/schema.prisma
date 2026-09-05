@@ -19,13 +19,6 @@ enum UserStatus {
   BANNED
 }
 
-enum AnalysisStatus {
-  PENDING
-  PROCESSING
-  COMPLETED
-  FAILED
-}
-
 enum RiskLevel {
   LOW
   MEDIUM
@@ -37,6 +30,19 @@ enum ReportStatus {
   PENDING
   APPROVED
   REJECTED
+}
+
+enum ScanInputType {
+  TEXT
+  URL
+}
+
+enum ScanAssessment {
+  NO_STRONG_WARNING_SIGNS
+  CAUTION
+  SUSPICIOUS
+  STRONG_SCAM_INDICATORS
+  UNABLE_TO_ASSESS
 }
 
 model User {
@@ -53,37 +59,85 @@ model User {
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
 
-  submissions     ScamSubmission[]
-  reviewedReports ScamReport[]    @relation("ReportReviewer")
-  communityPosts  CommunityPost[] @relation("PostAuthor")
+  scans           Scan[]
+  reports         ScamReport[]     @relation("ReportAuthor")
+  reviewedReports ScamReport[]     @relation("ReportReviewer")
+  communityPosts  CommunityPost[]  @relation("PostAuthor")
 
   @@index([role])
   @@index([status])
 }
 
-model ScamSubmission {
+// A Scan is a private, automated assessment. It becomes report evidence only
+// when its owner explicitly requests a moderator review.
+model Scan {
   id              String         @id @default(cuid())
-  userId          String
-  title           String?        @db.VarChar(255)
-  content         String         @db.LongText
-  sourceUrl       String?        @db.VarChar(512)
-  analysisStatus  AnalysisStatus @default(PENDING)
-  riskLevel       RiskLevel?
-  riskScore       Int?
+  // Nullable only for pre-ownership scans retained during migration. New scans
+  // are always created for the authenticated user by the API.
+  userId          String?
+  inputType       ScanInputType
+  rawInput        String         @db.LongText
+  normalizedInput String         @db.LongText
+  findings        Json
+  assessment      ScanAssessment
+  score           Int
   analysisSummary String?        @db.Text
   createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
 
-  user   User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  report ScamReport?
+  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  report          ScamReport?
+  scamCaseMatches ScanScamCaseMatch[]
 
+  @@index([assessment, createdAt])
   @@index([userId, createdAt])
-  @@index([analysisStatus])
+}
+
+// ScamCase is the authoritative catalogue imported from data/scam_datas.csv.
+// A future embedding worker creates vector documents directly from this record,
+// using stable case/chunk IDs in the vector store.
+model ScamCase {
+  // The CSV's stable identifier is retained so imports can be idempotent.
+  id          Int       @id
+  title       String    @db.VarChar(255)
+  scamType    String    @db.VarChar(100)
+  description String    @db.Text
+  sampleText  String    @db.LongText
+  indicators  Json
+  riskLevel   RiskLevel
+  source      String    @db.VarChar(255)
+  verified    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  scanMatches ScanScamCaseMatch[]
+
+  @@index([scamType, riskLevel])
+  @@index([verified])
+}
+
+model ScanScamCaseMatch {
+  scanId      String
+  scamCaseId  Int
+  similarity  Int
+  matchReason String    @db.VarChar(500)
+  createdAt   DateTime  @default(now())
+
+  scan     Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scamCase ScamCase @relation(fields: [scamCaseId], references: [id], onDelete: Cascade)
+
+  @@id([scanId, scamCaseId])
+  @@index([scamCaseId])
 }
 
 model ScamReport {
   id           String       @id @default(cuid())
-  submissionId String       @unique
+  userId       String
+  // Nullable only to preserve reports created by the retired direct-submission flow.
+  // All reports created by current routes reference an owned scan.
+  scanId       String?      @unique
+  title        String?      @db.VarChar(255)
+  content      String       @db.LongText
+  sourceUrl    String?      @db.VarChar(512)
   status       ReportStatus @default(PENDING)
   reviewNote   String?      @db.Text
   reviewedById String?
@@ -91,10 +145,12 @@ model ScamReport {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
 
-  submission    ScamSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  reviewedBy    User?          @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  user          User          @relation("ReportAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  scan          Scan?         @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  reviewedBy    User?         @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   communityPost CommunityPost?
 
+  @@index([userId, createdAt])
   @@index([status, createdAt])
   @@index([reviewedById])
 }

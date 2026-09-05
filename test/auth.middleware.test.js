@@ -19,3 +19,11 @@ test('extractToken falls back to the session cookie', () => {
 
   assert.equal(extractToken(request), 'cookie-token')
 })
+
+test('extractToken accepts a case-insensitive bearer scheme and tolerates absent cookies', () => {
+  const request = {
+    get: (header) => header === 'authorization' ? 'bearer token-with-extra-space' : undefined,
+  }
+
+  assert.equal(extractToken(request), 'token-with-extra-space')
+})

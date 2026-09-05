@@ -1,5 +1,10 @@
 import asyncHandler from '../utils/async-handler.js'
-import { getAdminReport, getUserReport, listAdminReports, listUserReports, reviewReport } from '../services/report.service.js'
+import { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport } from '../services/report.service.js'
+
+const createFromScan = asyncHandler(async (request, response) => {
+  const report = await createReportFromScan({ scanId: request.params.id, userId: request.auth.userId, title: request.body.title })
+  response.status(201).json({ report })
+})
 
 const list = asyncHandler(async (request, response) => {
   const reports = await listUserReports({
@@ -30,25 +35,30 @@ const getAdminById = asyncHandler(async (request, response) => {
 })
 
 const approve = asyncHandler(async (request, response) => {
-  const result = await reviewReport({
+  const report = await reviewReport({
     id: request.params.id,
     adminId: request.auth.userId,
     status: 'APPROVED',
     reviewNote: request.body.reviewNote,
   })
 
-  response.json(result)
+  response.json({ report })
 })
 
 const reject = asyncHandler(async (request, response) => {
-  const result = await reviewReport({
+  const report = await reviewReport({
     id: request.params.id,
     adminId: request.auth.userId,
     status: 'REJECTED',
     reviewNote: request.body.reviewNote,
   })
 
-  response.json(result)
+  response.json({ report })
 })
 
-export { approve, getAdminById, getById, list, listAdmin, reject }
+const publish = asyncHandler(async (request, response) => {
+  const post = await publishReport({ id: request.params.id, adminId: request.auth.userId, ...request.body })
+  response.status(201).json({ post })
+})
+
+export { approve, createFromScan, getAdminById, getById, list, listAdmin, publish, reject }

@@ -5,10 +5,10 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import env from './config/env.js'
 import authRoutes from './routes/auth.routes.js'
-import submissionRoutes from './routes/submission.routes.js'
 import reportRoutes from './routes/report.routes.js'
 import communityRoutes from './routes/community.routes.js'
 import adminRoutes from './routes/admin.routes.js'
+import scanRoutes from './routes/scan.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 
 const swaggerSpecPath = fileURLToPath(new URL('../swagger.yaml', import.meta.url))
@@ -187,8 +187,8 @@ function registerDocumentationRoutes(app) {
 }
 
 function registerApiRoutes(app) {
+  app.use('/api/v1/scans', scanRoutes)
   app.use('/api/v1/auth', authRoutes)
-  app.use('/api/v1/scam-submissions', submissionRoutes)
   app.use('/api/v1/reports', reportRoutes)
   app.use('/api/v1/admin', adminRoutes)
   app.use('/api/v1/community/posts', communityRoutes)

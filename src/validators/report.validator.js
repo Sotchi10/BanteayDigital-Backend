@@ -10,5 +10,11 @@ const listAdminReportsQuerySchema = listReportsQuerySchema.extend({
   userId: z.string().trim().min(1).optional(),
 })
 const adminReviewSchema = z.object({ reviewNote: z.string().trim().min(1).max(2000).optional().nullable() })
+const reportFromScanSchema = z.object({ title: z.string().trim().min(3).max(255).optional() })
+const publishReportSchema = z.object({
+  title: z.string().trim().min(3).max(255),
+  summary: z.string().trim().min(10).max(500),
+  content: z.string().trim().min(10).max(50000),
+})
 
-export { adminReviewSchema, listAdminReportsQuerySchema, listReportsQuerySchema, reportIdParamSchema }
+export { adminReviewSchema, listAdminReportsQuerySchema, listReportsQuerySchema, publishReportSchema, reportFromScanSchema, reportIdParamSchema }

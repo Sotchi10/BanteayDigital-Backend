@@ -1,96 +1,109 @@
 import prisma from '../config/database.js'
 import ApiError from '../utils/api-error.js'
 
+let reportRepository = prisma
+
+const PENDING_REPORT_STATUS = 'PENDING'
+const APPROVED_REPORT_STATUS = 'APPROVED'
+
 const reportInclude = {
-  submission: { select: { id: true, userId: true, title: true, content: true, sourceUrl: true, analysisStatus: true, riskLevel: true, riskScore: true, analysisSummary: true, createdAt: true } },
+  scan: {
+    select: {
+      id: true, inputType: true, normalizedInput: true, findings: true, assessment: true,
+      score: true, analysisSummary: true, createdAt: true,
+      scamCaseMatches: { select: { similarity: true, matchReason: true, scamCase: { select: { id: true, title: true, scamType: true, riskLevel: true } } } },
+    },
+  },
   communityPost: { select: { id: true, title: true, publishedAt: true } },
 }
 
 const pageResult = async (where, query, include = reportInclude) => {
   const { page, limit } = query
   const [reports, total] = await Promise.all([
-    prisma.scamReport.findMany({ where, include, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
-    prisma.scamReport.count({ where }),
+    reportRepository.scamReport.findMany({ where, include, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+    reportRepository.scamReport.count({ where }),
   ])
   return { reports, meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) } }
 }
 
-const listUserReports = ({ userId, query }) => pageResult({ submission: { is: { userId } }, ...(query.status && { status: query.status }) }, query)
+const listUserReports = ({ userId, query }) => pageResult({ userId, ...(query.status && { status: query.status }) }, query)
 
 const getUserReport = async ({ id, userId }) => {
-  const report = await prisma.scamReport.findFirst({ where: { id, submission: { is: { userId } } }, include: reportInclude })
+  const report = await reportRepository.scamReport.findFirst({ where: { id, userId }, include: reportInclude })
   if (!report) throw new ApiError(404, 'Scam report not found')
   return report
 }
 
 const listAdminReports = ({ query }) => pageResult({
   ...(query.status && { status: query.status }),
-  ...(query.userId && { submission: { is: { userId: query.userId } } }),
+  ...(query.userId && { userId: query.userId }),
 }, query, {
   ...reportInclude,
   reviewedBy: { select: { id: true, name: true, email: true } },
 })
 
 const getAdminReport = async ({ id }) => {
-  const report = await prisma.scamReport.findUnique({ where: { id }, include: { ...reportInclude, reviewedBy: { select: { id: true, name: true, email: true } } } })
+  const report = await reportRepository.scamReport.findUnique({ where: { id }, include: { ...reportInclude, reviewedBy: { select: { id: true, name: true, email: true } } } })
   if (!report) throw new ApiError(404, 'Scam report not found')
   return report
 }
 
-const reviewReport = async ({ id, adminId, status, reviewNote }) => {
-  const report = await prisma.scamReport.findUnique({ where: { id }, include: { submission: true, communityPost: true } })
-  if (!report) throw new ApiError(404, 'Scam report not found')
-  if (report.status !== 'PENDING') throw new ApiError(409, 'Scam report has already been reviewed')
-
-  return prisma.$transaction(async (tx) => {
-    const updatedReport = await tx.scamReport.update({ where: { id }, data: { status, reviewNote: reviewNote || null, reviewedById: adminId, reviewedAt: new Date() } })
-    let communityPost = null
-    if (status === 'APPROVED') {
-      const content = report.submission.analysisSummary || report.submission.content
-      const title = report.submission.title || 'Community scam alert'
-      communityPost = await tx.communityPost.create({
-        data: { reportId: report.id, authorId: adminId, title, summary: content.slice(0, 500), content },
+const createReportFromScan = async ({ scanId, userId, title }) => {
+  try {
+    return await reportRepository.$transaction(async (tx) => {
+      const scan = await tx.scan.findFirst({
+        where: { id: scanId, userId },
+        select: { id: true, inputType: true, rawInput: true, assessment: true },
       })
-    }
-    return { report: updatedReport, communityPost }
-  })
-}
+      if (!scan) throw new ApiError(404, 'Scan not found')
+      if (scan.assessment === 'UNABLE_TO_ASSESS') throw new ApiError(409, 'This scan cannot be reported until it has a usable result')
 
-// Intended for the future analysis service. It deliberately performs no analysis.
-const createReportForCompletedSubmission = async (submissionId) => {
-  const submission = await prisma.scamSubmission.findUnique({ where: { id: submissionId }, select: { id: true, analysisStatus: true } })
-  if (!submission) throw new ApiError(404, 'Scam submission not found')
-  if (submission.analysisStatus !== 'COMPLETED') throw new ApiError(409, 'Submission analysis is not complete')
-  return prisma.scamReport.upsert({ where: { submissionId }, create: { submissionId }, update: {} })
-}
-
-const completeSubmissionAndCreateReport = async (submissionId) => prisma.$transaction(async (transaction) => {
-  const submission = await transaction.scamSubmission.findUnique({
-    where: { id: submissionId },
-    select: { id: true, analysisStatus: true },
-  })
-
-  if (!submission) {
-    throw new ApiError(404, 'Scam submission not found')
-  }
-
-  if (submission.analysisStatus === 'FAILED') {
-    throw new ApiError(409, 'A failed submission cannot be completed')
-  }
-
-  if (submission.analysisStatus !== 'COMPLETED') {
-    await transaction.scamSubmission.update({
-      where: { id: submissionId },
-      data: { analysisStatus: 'COMPLETED' },
+      return tx.scamReport.create({
+        data: {
+          userId,
+          scanId: scan.id,
+          title: title || null,
+          content: scan.rawInput,
+          ...(scan.inputType === 'URL' ? { sourceUrl: scan.rawInput } : {}),
+        },
+        include: reportInclude,
+      })
     })
+  } catch (error) {
+    if (error.code === 'P2002') throw new ApiError(409, 'This scan has already been reported')
+    throw error
   }
+}
 
-  return transaction.scamReport.upsert({
-    where: { submissionId },
-    create: { submissionId },
-    update: {},
-    include: reportInclude,
+const reviewReport = async ({ id, adminId, status, reviewNote }) => {
+  const report = await reportRepository.scamReport.findUnique({ where: { id }, select: { id: true, status: true } })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  if (report.status !== PENDING_REPORT_STATUS) throw new ApiError(409, 'Scam report has already been reviewed')
+
+  const update = await reportRepository.scamReport.updateMany({
+    where: { id, status: PENDING_REPORT_STATUS },
+    data: { status, reviewNote: reviewNote || null, reviewedById: adminId, reviewedAt: new Date() },
   })
-})
+  if (update.count !== 1) throw new ApiError(409, 'Scam report has already been reviewed')
 
-export { completeSubmissionAndCreateReport, createReportForCompletedSubmission, getAdminReport, getUserReport, listAdminReports, listUserReports, reviewReport }
+  return reportRepository.scamReport.findUnique({ where: { id }, include: reportInclude })
+}
+
+const publishReport = async ({ id, adminId, title, summary, content }) => {
+  const report = await reportRepository.scamReport.findUnique({ where: { id }, select: { id: true, status: true, communityPost: { select: { id: true } } } })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  if (report.status !== APPROVED_REPORT_STATUS) throw new ApiError(409, 'Only approved reports can be published')
+  if (report.communityPost) throw new ApiError(409, 'This report has already been published')
+  try {
+    return await reportRepository.communityPost.create({ data: { reportId: id, authorId: adminId, title, summary, content } })
+  } catch (error) {
+    if (error.code === 'P2002') throw new ApiError(409, 'This report has already been published')
+    throw error
+  }
+}
+
+const setReportRepositoryForTests = (repository) => {
+  reportRepository = repository || prisma
+}
+
+export { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport, setReportRepositoryForTests }

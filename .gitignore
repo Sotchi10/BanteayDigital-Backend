@@ -1,0 +1,6 @@
+node_modules
+.env
+*.local.js
+uploads/
+backend/uploads/
+src/generated/
