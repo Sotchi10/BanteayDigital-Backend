@@ -110,6 +110,7 @@ docker start banteay-qdrant
 docker logs banteay-qdrant
 ```
 
+
 For a future AI service, use `QDRANT_URL=http://localhost:6333` when it runs on the host. If that AI service runs in Docker on the same network as Qdrant, use `http://<qdrant-container-name>:6333` instead. Keep Qdrant storage persistent and do not expose port `6333` publicly.
 
 The present backend scanner uses deterministic checks and MySQL `ScamCase` records. Adding `QDRANT_URL`, model keys, or LLM settings to `backend/.env` will have no effect until the AI/RAG integration is implemented.
