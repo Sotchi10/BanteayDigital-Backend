@@ -10,6 +10,8 @@ import communityRoutes from './routes/community.routes.js'
 import adminRoutes from './routes/admin.routes.js'
 import scanRoutes from './routes/scan.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
+import asyncHandler from './utils/async-handler.js'
+import { getAiServiceHealth } from './services/ai-service.client.js'
 
 const swaggerSpecPath = fileURLToPath(new URL('../swagger.yaml', import.meta.url))
 const uploadsPath = path.resolve(process.cwd(), 'uploads')
@@ -176,6 +178,11 @@ function registerDocumentationRoutes(app) {
   app.get('/api/health', (_request, response) => {
     response.status(200).json({ status: 'ok' })
   })
+
+  app.get('/api/health/ai-service', asyncHandler(async (_request, response) => {
+    const aiService = await getAiServiceHealth()
+    response.status(200).json({ status: 'ok', aiService })
+  }))
 
   app.get('/swagger.yaml', (_request, response) => {
     response.type('application/yaml').sendFile(swaggerSpecPath)

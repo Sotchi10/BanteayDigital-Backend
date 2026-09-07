@@ -39,6 +39,7 @@ enum ScanInputType {
 
 enum ScanAssessment {
   NO_STRONG_WARNING_SIGNS
+  INSUFFICIENT_EVIDENCE
   CAUTION
   SUSPICIOUS
   STRONG_SCAM_INDICATORS
@@ -80,8 +81,10 @@ model Scan {
   normalizedInput String         @db.LongText
   findings        Json
   assessment      ScanAssessment
+  deterministicAssessment ScanAssessment?
   score           Int
   analysisSummary String?        @db.Text
+  retrievalEvidence Json?
   createdAt       DateTime       @default(now())
 
   user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)

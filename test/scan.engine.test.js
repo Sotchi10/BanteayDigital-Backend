@@ -12,6 +12,14 @@ test('detects explainable suspicious text while ordinary text has no strong warn
   assert.deepEqual(legitimate.findings, [])
 })
 
+test('treats a monetary prize claim as a caution, not proof of a scam', () => {
+  const result = runScan({ type: 'TEXT', value: 'ABA win $1000' })
+
+  assert.equal(result.assessment, 'CAUTION')
+  assert.equal(result.score, 15)
+  assert.deepEqual(result.findings.map((item) => item.code), ['PRIZE_OR_REWARD_CLAIM'])
+})
+
 test('detects suspicious URLs while ordinary HTTPS URLs have no strong warning signs', () => {
   const suspicious = runScan({ type: 'URL', value: 'http://192.0.2.1/login' })
   const legitimate = runScan({ type: 'URL', value: 'https://www.example.org/about' })

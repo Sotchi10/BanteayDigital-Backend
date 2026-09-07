@@ -23,6 +23,7 @@ const scanText = (text) => {
   if (/\b(password|passcode|otp|verification code|one-time code|login code)\b/.test(lower) && /\b(send|share|reply|provide|tell)\b/.test(lower)) findings.push(finding('CREDENTIAL_REQUEST', 'SUSPICIOUS', 'The message asks for login or verification information.', 35))
   if (/\b(pay|payment|transfer|deposit|fee|fine)\b/.test(lower) && /\b(crypto|gift card|voucher|wallet address)\b/.test(lower)) findings.push(finding('UNUSUAL_PAYMENT_METHOD', 'SUSPICIOUS', 'The message requests payment through a hard-to-reverse method.', 30))
   if (/\b(account (will be )?(closed|suspended|locked)|legal action|arrest warrant)\b/.test(lower)) findings.push(finding('THREAT_OR_CONSEQUENCE', 'CAUTION', 'The message threatens a consequence to pressure action.', 15))
+  if (/\b(win|won|winner|prize|reward|bonus|giveaway)\b/.test(lower) && /(?:[$\u17db]\s*\d|\b(?:usd|dollars?|riel)\b)/i.test(normalized)) findings.push(finding('PRIZE_OR_REWARD_CLAIM', 'CAUTION', 'The message claims a prize or reward with a monetary amount. Verify it independently.', 15))
   return { normalized, findings }
 }
 
@@ -93,12 +94,16 @@ const assess = (findings, input) => {
   return 'NO_STRONG_WARNING_SIGNS'
 }
 
-const recommendationsFor = (assessment) => {
+const recommendationsFor = (assessment, retrievalEvidence = null) => {
   const common = ['Do not share passwords, one-time codes, or banking details.', 'Verify the sender or organization through a contact method you find independently.']
-  if (assessment === 'STRONG_SCAM_INDICATORS') return ['Avoid interacting with the message or link.', 'Do not send money or credentials.', ...common]
-  if (assessment === 'SUSPICIOUS') return ['Pause before responding or clicking.', 'Do not send money or credentials.', ...common]
-  if (assessment === 'CAUTION') return ['Treat the content carefully and verify it independently.', ...common]
+  const retrievalRecommendation = retrievalEvidence?.likelyRelatedCount
+    ? [`${retrievalEvidence.verifiedLikelyRelatedCount ? 'Verified' : 'Unverified'} knowledge-base matches were found. Treat them as supporting context, not proof.`]
+    : []
+  if (assessment === 'STRONG_SCAM_INDICATORS') return ['Avoid interacting with the message or link.', 'Do not send money or credentials.', ...retrievalRecommendation, ...common]
+  if (assessment === 'SUSPICIOUS') return ['Pause before responding or clicking.', 'Do not send money or credentials.', ...retrievalRecommendation, ...common]
+  if (assessment === 'CAUTION') return ['Treat the content carefully and verify it independently.', ...retrievalRecommendation, ...common]
   if (assessment === 'UNABLE_TO_ASSESS') return ['Provide a non-empty text message or a complete http/https URL.']
+  if (assessment === 'INSUFFICIENT_EVIDENCE') return ['There is not enough evidence to determine whether this content is safe.', ...common]
   return ['No strong warning signs were found by these limited checks.', ...common]
 }
 

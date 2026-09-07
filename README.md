@@ -106,7 +106,7 @@ flowchart TB
         AuthGuard[JWT / Cookie Auth & RBAC Middleware]
         Validation[Zod Input Validation]
         PrismaORM[Prisma ORM Client]
-        MySQL[(MySQL / MariaDB Database)]
+        MySQL[(MySQL Database)]
     end
 
     subgraph AISubsystem [AI Intelligence Service - Python / FastAPI]
@@ -307,7 +307,7 @@ Interactive documentation is available at `http://localhost:3000/api-docs` when 
 
 - **Node.js**: `v20.x` or higher
 - **npm**: `v10.x` or higher
-- **MySQL / MariaDB**: `v8.x` running locally or via Docker
+- **MySQL**: `v8.x` running locally or via Docker
 - **Python** (for AI microservice): `3.10+`
 
 ---
