@@ -54,4 +54,51 @@ const retrieveSimilarScamCases = async ({ type, value, limit = 3 }) => {
   return response.json()
 }
 
-export { getAiServiceHealth, retrieveSimilarScamCases }
+const analyzeScan = async ({ type, value, deterministicFindings, retrievedCases }) => {
+  if (!env.aiServiceUrl) {
+    throw new ApiError(503, 'AI service is not configured')
+  }
+
+  let response
+  try {
+    const analyzeUrl = new URL('/api/v1/analyze', env.aiServiceUrl)
+    response = await fetch(analyzeUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(env.aiServiceApiKey ? { 'X-AI-Service-Key': env.aiServiceApiKey } : {}),
+      },
+      body: JSON.stringify({ type, value, deterministicFindings, retrievedCases }),
+      signal: AbortSignal.timeout(15000),
+    })
+  } catch {
+    throw new ApiError(503, 'AI analysis service is unavailable')
+  }
+
+  if (!response.ok) {
+    throw new ApiError(503, 'AI analysis request failed')
+  }
+
+  return response.json()
+}
+
+const indexScamCase = async (caseId) => {
+  if (!env.aiServiceUrl) throw new ApiError(503, 'AI service is not configured')
+
+  let response
+  try {
+    const indexUrl = new URL(`/api/v1/index/scam-cases/${caseId}`, env.aiServiceUrl)
+    response = await fetch(indexUrl, {
+      method: 'POST',
+      headers: env.aiServiceApiKey ? { 'X-AI-Service-Key': env.aiServiceApiKey } : {},
+      signal: AbortSignal.timeout(30000),
+    })
+  } catch {
+    throw new ApiError(503, 'AI indexing service is unavailable')
+  }
+
+  if (!response.ok) throw new ApiError(503, 'AI indexing request failed')
+  return response.json()
+}
+
+export { analyzeScan, getAiServiceHealth, indexScamCase, retrieveSimilarScamCases }

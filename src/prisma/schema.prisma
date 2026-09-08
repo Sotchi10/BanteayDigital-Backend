@@ -32,6 +32,11 @@ enum ReportStatus {
   REJECTED
 }
 
+enum ScanReportStatus {
+  NOT_REPORTED
+  REPORTED
+}
+
 enum ScanInputType {
   TEXT
   URL
@@ -44,6 +49,11 @@ enum ScanAssessment {
   SUSPICIOUS
   STRONG_SCAM_INDICATORS
   UNABLE_TO_ASSESS
+}
+
+enum DetectionRuleSeverity {
+  CAUTION
+  SUSPICIOUS
 }
 
 model User {
@@ -84,7 +94,12 @@ model Scan {
   deterministicAssessment ScanAssessment?
   score           Int
   analysisSummary String?        @db.Text
+  analysisReasons Json?
+  recommendedActions Json?
+  analysisSource  String?        @db.VarChar(50)
+  citedCaseIds    Json?
   retrievalEvidence Json?
+  reportStatus    ScanReportStatus @default(NOT_REPORTED)
   createdAt       DateTime       @default(now())
 
   user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -93,6 +108,28 @@ model Scan {
 
   @@index([assessment, createdAt])
   @@index([userId, createdAt])
+  @@index([reportStatus, createdAt])
+}
+
+// Administrator-managed, human-readable detection knowledge. Terms are plain
+// phrases, never executable regular expressions, so changes stay safe to review.
+model DetectionRule {
+  id             String                @id @default(cuid())
+  code           String                @unique @db.VarChar(100)
+  title          String                @db.VarChar(160)
+  description    String                @db.Text
+  severity       DetectionRuleSeverity
+  weight         Int
+  matchTerms     Json
+  languages      Json
+  recommendation String?               @db.Text
+  source         String                @db.VarChar(255)
+  verified       Boolean               @default(false)
+  enabled        Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([enabled, severity])
 }
 
 // ScamCase is the authoritative catalogue imported from data/scam_datas.csv.
@@ -100,7 +137,7 @@ model Scan {
 // using stable case/chunk IDs in the vector store.
 model ScamCase {
   // The CSV's stable identifier is retained so imports can be idempotent.
-  id          Int       @id
+  id          Int       @id @default(autoincrement())
   title       String    @db.VarChar(255)
   scamType    String    @db.VarChar(100)
   description String    @db.Text

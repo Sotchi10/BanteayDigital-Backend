@@ -14,6 +14,7 @@ tags:
   - name: Scans
   - name: Reports
   - name: Admin Reports
+  - name: Admin Detection Rules
   - name: Community Posts
 components:
   securitySchemes:
@@ -41,7 +42,7 @@ components:
         assessment:
           type: string
           description: No warning signs is not a guarantee that content is safe.
-          enum: [NO_STRONG_WARNING_SIGNS, CAUTION, SUSPICIOUS, STRONG_SCAM_INDICATORS, UNABLE_TO_ASSESS]
+          enum: [NO_STRONG_WARNING_SIGNS, INSUFFICIENT_EVIDENCE, CAUTION, SUSPICIOUS, STRONG_SCAM_INDICATORS, UNABLE_TO_ASSESS]
         score: { type: integer, minimum: 0 }
         analysisSummary: { type: string, nullable: true }
         matchedScamCases: { type: array, items: { type: object } }
@@ -63,6 +64,21 @@ components:
         title: { type: string, minLength: 3, maxLength: 255 }
         summary: { type: string, minLength: 10, maxLength: 500 }
         content: { type: string, minLength: 10, maxLength: 50000 }
+    DetectionRuleInput:
+      type: object
+      required: [code, title, description, severity, weight, matchTerms, languages, source]
+      properties:
+        code: { type: string, example: PARCEL_FEE_SCAM }
+        title: { type: string, example: Parcel fee scam }
+        description: { type: string, example: A delivery fee is requested before a parcel can be released. }
+        severity: { type: string, enum: [CAUTION, SUSPICIOUS] }
+        weight: { type: integer, minimum: 1, maximum: 50 }
+        matchTerms: { type: array, items: { type: string }, example: [customs fee, parcel is held] }
+        languages: { type: array, items: { type: string }, example: [en, km] }
+        recommendation: { type: string, nullable: true }
+        source: { type: string }
+        verified: { type: boolean }
+        enabled: { type: boolean }
     Error:
       type: object
       required: [message]
@@ -172,6 +188,26 @@ paths:
       summary: List reports for moderation
       parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
       responses: { '200': { description: Reports found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/admin/detection-rules:
+    get:
+      tags: [Admin Detection Rules]
+      security: [{ bearerAuth: [] }]
+      summary: List administrator-managed text detection rules
+      responses: { '200': { description: Rules found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [Admin Detection Rules]
+      security: [{ bearerAuth: [] }]
+      summary: Create a text detection rule
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DetectionRuleInput' } } } }
+      responses: { '201': { description: Rule created. }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/admin/detection-rules/{id}:
+    patch:
+      tags: [Admin Detection Rules]
+      security: [{ bearerAuth: [] }]
+      summary: Update, enable, or disable a text detection rule
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/DetectionRuleInput' } } } }
+      responses: { '200': { description: Rule updated. }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/admin/reports/{id}/approve:
     patch:
       tags: [Admin Reports]

@@ -326,7 +326,7 @@ Create a `.env` file in the project root:
 ```env
 PORT=3000
 NODE_ENV=development
-CLIENT_URL=http://localhost:5173
+CLIENT_ORIGINS=http://localhost:5173
 
 # Database Connection
 DATABASE_URL="mysql://root:password@localhost:3306/banteay_digital"
@@ -351,8 +351,8 @@ npm install
 # Generate Prisma Client
 npm run prisma:generate
 
-# Push Schema to Local Database
-npm run prisma:push
+# Apply database migrations
+npm run prisma:migrate
 
 # (Optional) Open Prisma Studio GUI
 npm run prisma:studio

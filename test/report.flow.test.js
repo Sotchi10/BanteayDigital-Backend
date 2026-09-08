@@ -4,11 +4,15 @@ import { createReportFromScan, publishReport, reviewReport, setReportRepositoryF
 
 test('a user report is created only from the user\'s own scan', async (t) => {
   const created = []
+  const scanUpdates = []
   let scanQuery
   setReportRepositoryForTests({
     $transaction: async (work) => {
       const transaction = {
-        scan: { findFirst: async (query) => { scanQuery = query; return { id: 'scan-1', inputType: 'TEXT', rawInput: 'Suspicious message', assessment: 'SUSPICIOUS' } } },
+        scan: {
+          findFirst: async (query) => { scanQuery = query; return { id: 'scan-1', inputType: 'TEXT', rawInput: 'Suspicious message', assessment: 'SUSPICIOUS' } },
+          update: async (update) => { scanUpdates.push(update) },
+        },
         scamReport: { create: async ({ data }) => { created.push(data); return { id: 'report-1', ...data, status: 'PENDING' } } },
       }
       return work(transaction)
@@ -20,6 +24,7 @@ test('a user report is created only from the user\'s own scan', async (t) => {
   assert.equal(report.status, 'PENDING')
   assert.deepEqual(scanQuery.where, { id: 'scan-1', userId: 'user-1' })
   assert.deepEqual(created[0], { userId: 'user-1', scanId: 'scan-1', title: 'Suspicious message', content: 'Suspicious message' })
+  assert.deepEqual(scanUpdates[0], { where: { id: 'scan-1' }, data: { reportStatus: 'REPORTED' } })
 })
 
 test('only an approved, unpublished report can create a sanitized community post', async (t) => {

@@ -11,7 +11,9 @@
     "prisma:push": "prisma db push",
     "prisma:migrate": "prisma migrate dev",
     "prisma:seed:scam-cases": "node src/prisma/seed-scam-cases.js",
+    "prisma:seed:detection-rules": "node src/prisma/seed-detection-rules.js",
     "prisma:studio": "prisma studio",
+    "benchmark:text": "node scripts/benchmark-text-analysis.js",
     "test": "node --test"
   },
   "keywords": [],

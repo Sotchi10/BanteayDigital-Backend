@@ -42,7 +42,8 @@ AI_SERVICE_URL=http://localhost:8000
 | `JWT_SECRET` | Yes in production | Development-only fallback | Must be unique, random, and kept secret. |
 | `JWT_EXPIRES_IN` | No | `7d` | JWT lifetime accepted by `jsonwebtoken`. |
 | `DATABASE_URL` | Yes | None | Prisma/MySQL connection URL. |
-| `AI_SERVICE_URL` | No | None | AI service base URL, used by the AI health bridge. |
+| `AI_SERVICE_URL` | No | None | AI-service base URL used for optional retrieval and analysis. Deterministic TEXT scanning continues if it is unavailable. |
+| `AI_SERVICE_API_KEY` | No | None | Shared key sent to the AI service as `X-AI-Service-Key` when configured. |
 
 `VITE_BACKEND_URL` belongs in the frontend environment, not the backend configuration.
 
@@ -111,9 +112,7 @@ docker logs banteay-qdrant
 ```
 
 
-For a future AI service, use `QDRANT_URL=http://localhost:6333` when it runs on the host. If that AI service runs in Docker on the same network as Qdrant, use `http://<qdrant-container-name>:6333` instead. Keep Qdrant storage persistent and do not expose port `6333` publicly.
-
-The present backend scanner uses deterministic checks and MySQL `ScamCase` records. Adding `QDRANT_URL`, model keys, or LLM settings to `backend/.env` will have no effect until the AI/RAG integration is implemented.
+Set QDRANT_URL, embedding-model settings, and LLM credentials in `ai-service/.env`, not `backend/.env`. The backend calls the AI service through `AI_SERVICE_URL`; it continues deterministic TEXT scanning when retrieval or AI analysis is unavailable.
 
 ## Production essentials
 

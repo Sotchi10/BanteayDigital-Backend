@@ -1,12 +1,25 @@
 import { Router } from 'express'
 import { approve, getAdminById, listAdmin, publish, reject } from '../controllers/report.controller.js'
+import { create as createScamCase, list as listScamCases, update as updateScamCase } from '../controllers/scam-case.controller.js'
+import { getForAdmin as getAdminScan } from '../controllers/scan.controller.js'
 import requireAuth from '../middleware/auth.middleware.js'
 import requireRole from '../middleware/role.middleware.js'
 import validate from '../middleware/validate.middleware.js'
 import { adminReviewSchema, listAdminReportsQuerySchema, publishReportSchema, reportIdParamSchema } from '../validators/report.validator.js'
+import { createScamCaseSchema, scamCaseIdParamSchema, updateScamCaseSchema } from '../validators/scam-case.validator.js'
+import { scanIdParamSchema } from '../validators/scan.validator.js'
+import { create as createDetectionRule, list as listDetectionRules, update as updateDetectionRule } from '../controllers/detection-rule.controller.js'
+import { createDetectionRuleSchema, detectionRuleIdParamSchema, updateDetectionRuleSchema } from '../validators/detection-rule.validator.js'
 
 const router = Router()
 router.use(requireAuth, requireRole('ADMIN'))
+router.get('/scam-cases', listScamCases)
+router.post('/scam-cases', validate(createScamCaseSchema), createScamCase)
+router.patch('/scam-cases/:id', validate({ params: scamCaseIdParamSchema, body: updateScamCaseSchema }), updateScamCase)
+router.get('/detection-rules', listDetectionRules)
+router.post('/detection-rules', validate(createDetectionRuleSchema), createDetectionRule)
+router.patch('/detection-rules/:id', validate({ params: detectionRuleIdParamSchema, body: updateDetectionRuleSchema }), updateDetectionRule)
+router.get('/scans/:id', validate(scanIdParamSchema, 'params'), getAdminScan)
 router.get('/reports', validate(listAdminReportsQuerySchema, 'query'), listAdmin)
 router.get('/reports/:id', validate(reportIdParamSchema, 'params'), getAdminById)
 router.patch('/reports/:id/approve', validate({ params: reportIdParamSchema, body: adminReviewSchema }), approve)

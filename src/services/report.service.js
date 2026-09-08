@@ -10,7 +10,7 @@ const reportInclude = {
   scan: {
     select: {
       id: true, inputType: true, normalizedInput: true, findings: true, assessment: true,
-      score: true, analysisSummary: true, createdAt: true,
+      score: true, analysisSummary: true, reportStatus: true, createdAt: true,
       scamCaseMatches: { select: { similarity: true, matchReason: true, scamCase: { select: { id: true, title: true, scamType: true, riskLevel: true } } } },
     },
   },
@@ -58,7 +58,7 @@ const createReportFromScan = async ({ scanId, userId, title }) => {
       if (!scan) throw new ApiError(404, 'Scan not found')
       if (scan.assessment === 'UNABLE_TO_ASSESS') throw new ApiError(409, 'This scan cannot be reported until it has a usable result')
 
-      return tx.scamReport.create({
+      const report = await tx.scamReport.create({
         data: {
           userId,
           scanId: scan.id,
@@ -68,6 +68,8 @@ const createReportFromScan = async ({ scanId, userId, title }) => {
         },
         include: reportInclude,
       })
+      await tx.scan.update({ where: { id: scan.id }, data: { reportStatus: 'REPORTED' } })
+      return report
     })
   } catch (error) {
     if (error.code === 'P2002') throw new ApiError(409, 'This scan has already been reported')

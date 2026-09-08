@@ -1,0 +1,29 @@
+id,language,label,text
+en-01,en,SCAM,Urgent: send your OTP now or your bank account will be locked.
+en-02,en,SCAM,Transfer money today to release your prize.
+en-03,en,SCAM,Verify your account with your password and PIN immediately.
+en-04,en,SCAM,Pay now with a gift card to avoid account suspension.
+en-05,en,SCAM,Security alert: share the verification code we just sent.
+en-06,en,SCAM,Open http://192.0.2.1/login and enter your password.
+km-01,km,SCAM,គណនីរបស់អ្នកនឹងត្រូវផ្អាក។ សូមផ្ញើលេខកូដ OTP ភ្លាមៗ។
+km-02,km,SCAM,សូមផ្ទេរប្រាក់ទៅគណនីនេះភ្លាមៗ ដើម្បីទទួលរង្វាន់។
+km-03,km,SCAM,សូមផ្តល់ពាក្យសម្ងាត់ និងលេខសម្ងាត់របស់អ្នកដើម្បីផ្ទៀងផ្ទាត់។
+km-04,km,SCAM,បង់ប្រាក់ឥឡូវនេះ មុនពេលគណនីរបស់អ្នកត្រូវផ្អាក។
+en-07,en,SAFE,The community centre will open at 9 AM tomorrow.
+en-08,en,SAFE,Your order has been delivered to the collection desk.
+en-09,en,SAFE,Please use the official bank app to review your account balance.
+en-10,en,SAFE,Our school meeting is scheduled for Friday afternoon.
+km-05,km,SAFE,សាលារៀននឹងបើកនៅម៉ោងប្រាំបីព្រឹកថ្ងៃចន្ទ។
+km-06,km,SAFE,សូមប្រើកម្មវិធីធនាគារផ្លូវការដើម្បីពិនិត្យសមតុល្យរបស់អ្នក។
+km-07,km,SAFE,កិច្ចប្រជុំសហគមន៍នឹងធ្វើឡើងនៅថ្ងៃសៅរ៍។
+km-08,km,SAFE,សូមទាក់ទងការិយាល័យសម្រាប់ព័ត៌មានបន្ថែម។
+seed-01,en,SCAM,Urgent: send your OTP now or your bank account will be locked.
+seed-02,en,SCAM,Your parcel is held at customs. Pay the release fee today.
+seed-03,en,SCAM,Deposit 100 USDT for guaranteed daily crypto profit.
+seed-04,en,SCAM,Install AnyDesk so our bank support team can access your phone.
+seed-05,en,SCAM,Your loan is approved. Pay the processing fee to release it.
+seed-06,en,SAFE,The courier will deliver your package tomorrow between 9 AM and noon.
+seed-07,en,SAFE,Use the official bank app to update your contact details.
+seed-08,en,SAFE,Remember: never share your password or OTP with anyone.
+seed-09,km,SCAM,គណនីរបស់អ្នកនឹងត្រូវផ្អាក។ សូមផ្ញើលេខកូដ OTP ភ្លាមៗ។
+seed-10,km,SAFE,សូមប្រើកម្មវិធីធនាគារផ្លូវការដើម្បីពិនិត្យគណនីរបស់អ្នក។
