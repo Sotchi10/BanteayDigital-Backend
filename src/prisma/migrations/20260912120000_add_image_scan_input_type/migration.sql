@@ -1,0 +1,2 @@
+ALTER TABLE `Scan`
+  MODIFY `inputType` ENUM('TEXT', 'URL', 'IMAGE') NOT NULL;

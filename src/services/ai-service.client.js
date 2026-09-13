@@ -82,6 +82,36 @@ const analyzeScan = async ({ type, value, deterministicFindings, retrievedCases 
   return response.json()
 }
 
+const extractImageText = async (image) => {
+  if (!env.aiServiceUrl) throw new ApiError(503, 'AI service is not configured')
+
+  const body = new FormData()
+  body.append('image', new Blob([image.buffer], { type: image.mimetype }), image.originalname)
+
+  let response
+  try {
+    const ocrUrl = new URL('/api/v1/ocr', env.aiServiceUrl)
+    response = await fetch(ocrUrl, {
+      method: 'POST',
+      headers: env.aiServiceApiKey ? { 'X-AI-Service-Key': env.aiServiceApiKey } : {},
+      body,
+      signal: AbortSignal.timeout(30000),
+    })
+  } catch {
+    throw new ApiError(503, 'AI OCR service is unavailable')
+  }
+
+  if (!response.ok) {
+    if (response.status === 413 || response.status === 415 || response.status === 422) {
+      const payload = await response.json().catch(() => null)
+      throw new ApiError(response.status, payload?.detail || 'Image extraction failed')
+    }
+    throw new ApiError(503, 'AI OCR service is unavailable')
+  }
+
+  return response.json()
+}
+
 const indexScamCase = async (caseId) => {
   if (!env.aiServiceUrl) throw new ApiError(503, 'AI service is not configured')
 
@@ -101,4 +131,4 @@ const indexScamCase = async (caseId) => {
   return response.json()
 }
 
-export { analyzeScan, getAiServiceHealth, indexScamCase, retrieveSimilarScamCases }
+export { analyzeScan, extractImageText, getAiServiceHealth, indexScamCase, retrieveSimilarScamCases }

@@ -26,16 +26,28 @@ components:
   schemas:
     ScanInput:
       type: object
-      required: [type, value]
+      required: [inputType, value]
       properties:
-        type: { type: string, enum: [TEXT, URL] }
+        inputType: { type: string, enum: [TEXT, URL] }
         value: { type: string, minLength: 1, maxLength: 10000 }
+    ImageScanInput:
+      type: object
+      required: [inputType, image]
+      properties:
+        inputType: { type: string, enum: [IMAGE] }
+        image: { type: string, format: binary, description: PNG, JPG, JPEG, or WEBP; maximum 10 MB. }
     Scan:
       type: object
       required: [id, inputType, rawInput, normalizedInput, findings, assessment, score, createdAt]
       properties:
         id: { type: string }
-        inputType: { type: string, enum: [TEXT, URL] }
+        inputType: { type: string, enum: [TEXT, URL, IMAGE] }
+        imageStoragePath:
+          type: string
+          nullable: true
+          description: Private Supabase Storage object path; present only for IMAGE scans.
+        imageMimeType: { type: string, nullable: true, example: image/png }
+        imageSize: { type: integer, nullable: true, minimum: 0 }
         rawInput: { type: string }
         normalizedInput: { type: string }
         findings: { type: array, items: { type: object } }
@@ -144,14 +156,34 @@ paths:
     post:
       tags: [Scans]
       security: [{ bearerAuth: [] }]
-      summary: Privately scan text or a URL
+      summary: Privately scan text, a URL, or an image
+      description: |
+        Choose one input type. Send TEXT or URL as JSON. Send IMAGE as
+        multipart/form-data with an `image` file; its OCR text follows the same
+        deterministic, retrieval, and AI-analysis flow as TEXT.
       requestBody:
         required: true
-        content: { application/json: { schema: { $ref: '#/components/schemas/ScanInput' } } }
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ScanInput' }
+          multipart/form-data:
+            schema: { $ref: '#/components/schemas/ImageScanInput' }
       responses:
-        '201': { description: Scan completed. }
+        '201':
+          description: Scan completed.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [scan]
+                properties:
+                  scan: { $ref: '#/components/schemas/Scan' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '413': { description: Image exceeds the 10 MB upload limit. }
+        '415': { description: IMAGE input must be PNG, JPG, JPEG, or WEBP. }
+        '422': { description: Image OCR failed or no readable text was found. }
+        '503': { description: AI OCR, retrieval, or analysis service is unavailable. }
   /api/v1/scans/{id}:
     get:
       tags: [Scans]

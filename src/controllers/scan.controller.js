@@ -1,8 +1,11 @@
 import asyncHandler from '../utils/async-handler.js'
 import { createScan, getAdminScan, getOwnedScan } from '../services/scan.service.js'
+import { createImageScan } from '../services/scan-image.service.js'
 
 const create = asyncHandler(async (request, response) => {
-  const scan = await createScan({ userId: request.auth.userId, ...request.body })
+  const scan = request.body.inputType === 'IMAGE'
+    ? await createImageScan({ userId: request.auth.userId, image: request.file })
+    : await createScan({ userId: request.auth.userId, type: request.body.inputType, value: request.body.value })
   response.status(201).json({ scan })
 })
 

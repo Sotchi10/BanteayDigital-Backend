@@ -23,6 +23,9 @@ const env = {
   nodeEnv: process.env.NODE_ENV || 'development',
   aiServiceUrl: process.env.AI_SERVICE_URL || null,
   aiServiceApiKey: process.env.AI_SERVICE_API_KEY || null,
+  supabaseUrl: process.env.SUPABASE_URL || null,
+  supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || null,
+  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || null,
   aiMatchMinimumScore,
   aiMatchConfidenceThreshold,
   clientOrigins: (process.env.CLIENT_ORIGINS || 'http://localhost:5173')

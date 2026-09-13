@@ -9,7 +9,7 @@ let aiRetriever = retrieveSimilarScamCases
 let aiAnalyzer = analyzeScan
 
 const scanSelect = {
-  id: true, userId: true, inputType: true, rawInput: true, normalizedInput: true,
+  id: true, userId: true, inputType: true, imageStoragePath: true, imageMimeType: true, imageSize: true, rawInput: true, normalizedInput: true,
   findings: true, assessment: true, deterministicAssessment: true, score: true,
   analysisSummary: true, analysisReasons: true, recommendedActions: true, analysisSource: true,
   citedCaseIds: true, retrievalEvidence: true, createdAt: true,
@@ -126,7 +126,7 @@ const createAnalysis = async ({ type, value, findings, matches, deterministicAss
   }
 }
 
-const createScan = async ({ userId, type, value }) => {
+const createScan = async ({ id, userId, type, value, inputType = type, imageMetadata }) => {
   const knowledgeRules = type === 'TEXT' ? await loadActiveKnowledgeRules() : []
   const deterministic = runScan({ type, value, knowledgeRules })
   const retrieval = await retrieveMatches({ type, value })
@@ -135,7 +135,7 @@ const createScan = async ({ userId, type, value }) => {
   const analysis = await createAnalysis({ type, value, findings: deterministic.findings, matches: aiMatches, deterministicAssessment: deterministic.deterministicAssessment })
   const scan = await scanRepository.scan.create({
     data: {
-      userId, inputType: type, rawInput: value, normalizedInput: deterministic.normalizedInput,
+      ...(id ? { id } : {}), userId, inputType, ...(imageMetadata || {}), rawInput: value, normalizedInput: deterministic.normalizedInput,
       findings: deterministic.findings, assessment: analysis.assessment, deterministicAssessment: deterministic.deterministicAssessment,
       score: deterministic.score, analysisSummary: analysis.summary, analysisReasons: analysis.reasons,
       recommendedActions: analysis.recommendedActions, analysisSource: analysis.source,

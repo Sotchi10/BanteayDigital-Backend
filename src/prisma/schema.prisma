@@ -8,41 +8,166 @@ datasource db {
   provider = "mysql"
 }
 
-enum UserRole {
-  USER
-  ADMIN
+model communitypost {
+  id          String     @id
+  reportId    String     @unique(map: "CommunityPost_reportId_key")
+  authorId    String
+  title       String     @db.VarChar(255)
+  summary     String     @db.VarChar(500)
+  content     String     @db.LongText
+  publishedAt DateTime   @default(now())
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  user        user       @relation(fields: [authorId], references: [id], map: "CommunityPost_authorId_fkey")
+  scamreport  scamreport @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "CommunityPost_reportId_fkey")
+
+  @@index([authorId], map: "CommunityPost_authorId_fkey")
+  @@index([publishedAt], map: "CommunityPost_publishedAt_idx")
 }
 
-enum UserStatus {
-  ACTIVE
-  SUSPENDED
-  BANNED
+model detectionrule {
+  id             String                 @id
+  code           String                 @unique(map: "DetectionRule_code_key") @db.VarChar(100)
+  title          String                 @db.VarChar(160)
+  description    String                 @db.Text
+  severity       detectionrule_severity
+  weight         Int
+  matchTerms     Json
+  languages      Json
+  recommendation String?                @db.Text
+  source         String                 @db.VarChar(255)
+  verified       Boolean                @default(false)
+  enabled        Boolean                @default(true)
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime
+
+  @@index([enabled, severity], map: "DetectionRule_enabled_severity_idx")
 }
 
-enum RiskLevel {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
+model scamcase {
+  id                Int                 @id @default(autoincrement())
+  title             String              @db.VarChar(255)
+  scamType          String              @db.VarChar(100)
+  description       String              @db.Text
+  sampleText        String              @db.LongText
+  indicators        Json
+  riskLevel         scamcase_riskLevel
+  source            String              @db.VarChar(255)
+  verified          Boolean             @default(false)
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime
+  scanscamcasematch scanscamcasematch[]
+
+  @@index([scamType, riskLevel], map: "ScamCase_scamType_riskLevel_idx")
+  @@index([verified], map: "ScamCase_verified_idx")
 }
 
-enum ReportStatus {
+model scamreport {
+  id                                 String            @id
+  status                             scamreport_status @default(PENDING)
+  reviewNote                         String?           @db.Text
+  reviewedById                       String?
+  reviewedAt                         DateTime?
+  createdAt                          DateTime          @default(now())
+  updatedAt                          DateTime
+  userId                             String
+  scanId                             String?           @unique(map: "ScamReport_scanId_key")
+  title                              String?           @db.VarChar(255)
+  content                            String            @db.LongText
+  sourceUrl                          String?           @db.VarChar(512)
+  communitypost                      communitypost?
+  user_scamreport_reviewedByIdTouser user?             @relation("scamreport_reviewedByIdTouser", fields: [reviewedById], references: [id], map: "ScamReport_reviewedById_fkey")
+  scan                               scan?             @relation(fields: [scanId], references: [id], map: "ScamReport_scanId_fkey")
+  user_scamreport_userIdTouser       user              @relation("scamreport_userIdTouser", fields: [userId], references: [id], onDelete: Cascade, map: "ScamReport_userId_fkey")
+
+  @@index([reviewedById], map: "ScamReport_reviewedById_idx")
+  @@index([status, createdAt], map: "ScamReport_status_createdAt_idx")
+  @@index([userId, createdAt], map: "ScamReport_userId_createdAt_idx")
+}
+
+model scan {
+  id                      String                        @id
+  inputType               scan_inputType
+  imageStoragePath        String?                       @db.VarChar(512)
+  imageMimeType           String?                       @db.VarChar(100)
+  imageSize               Int?
+  rawInput                String                        @db.LongText
+  normalizedInput         String                        @db.LongText
+  findings                Json
+  assessment              scan_assessment
+  score                   Int
+  createdAt               DateTime                      @default(now())
+  userId                  String?
+  analysisSummary         String?                       @db.Text
+  deterministicAssessment scan_deterministicAssessment?
+  retrievalEvidence       Json?
+  analysisReasons         Json?
+  recommendedActions      Json?
+  analysisSource          String?                       @db.VarChar(50)
+  citedCaseIds            Json?
+  reportStatus            scan_reportStatus             @default(NOT_REPORTED)
+  scamreport              scamreport?
+  user                    user?                         @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Scan_userId_fkey")
+  scanscamcasematch       scanscamcasematch[]
+
+  @@index([assessment, createdAt], map: "Scan_assessment_createdAt_idx")
+  @@index([reportStatus, createdAt], map: "Scan_reportStatus_createdAt_idx")
+  @@index([userId, createdAt], map: "Scan_userId_createdAt_idx")
+}
+
+model scanscamcasematch {
+  scanId      String
+  scamCaseId  Int
+  similarity  Int
+  matchReason String   @db.VarChar(500)
+  createdAt   DateTime @default(now())
+  scamcase    scamcase @relation(fields: [scamCaseId], references: [id], onDelete: Cascade, map: "ScanScamCaseMatch_scamCaseId_fkey")
+  scan        scan     @relation(fields: [scanId], references: [id], onDelete: Cascade, map: "ScanScamCaseMatch_scanId_fkey")
+
+  @@id([scanId, scamCaseId])
+  @@index([scamCaseId], map: "ScanScamCaseMatch_scamCaseId_idx")
+}
+
+model user {
+  id                                       String          @id
+  phone_num                                String?         @unique(map: "User_phone_num_key")
+  email                                    String?         @unique(map: "User_email_key")
+  name                                     String?
+  age                                      Int?
+  createdAt                                DateTime        @default(now())
+  updatedAt                                DateTime
+  passwordHash                             String
+  tokenVersion                             Int             @default(0)
+  avatarUrl                                String?         @db.VarChar(512)
+  role                                     user_role       @default(USER)
+  status                                   user_status     @default(ACTIVE)
+  communitypost                            communitypost[]
+  scamreport_scamreport_reviewedByIdTouser scamreport[]    @relation("scamreport_reviewedByIdTouser")
+  scamreport_scamreport_userIdTouser       scamreport[]    @relation("scamreport_userIdTouser")
+  scan                                     scan[]
+
+  @@index([role], map: "User_role_idx")
+  @@index([status], map: "User_status_idx")
+}
+
+enum scan_inputType {
+  TEXT
+  URL
+  IMAGE
+}
+
+enum scamreport_status {
   PENDING
   APPROVED
   REJECTED
 }
 
-enum ScanReportStatus {
-  NOT_REPORTED
-  REPORTED
+enum detectionrule_severity {
+  CAUTION
+  SUSPICIOUS
 }
 
-enum ScanInputType {
-  TEXT
-  URL
-}
-
-enum ScanAssessment {
+enum scan_assessment {
   NO_STRONG_WARNING_SIGNS
   INSUFFICIENT_EVIDENCE
   CAUTION
@@ -51,163 +176,34 @@ enum ScanAssessment {
   UNABLE_TO_ASSESS
 }
 
-enum DetectionRuleSeverity {
+enum scamcase_riskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum scan_deterministicAssessment {
+  NO_STRONG_WARNING_SIGNS
+  INSUFFICIENT_EVIDENCE
   CAUTION
   SUSPICIOUS
+  STRONG_SCAM_INDICATORS
+  UNABLE_TO_ASSESS
 }
 
-model User {
-  id           String     @id @default(cuid())
-  phone_num    String?    @unique
-  email        String?    @unique
-  passwordHash String
-  name         String?
-  age          Int?
-  avatarUrl    String?    @db.VarChar(512)
-  role         UserRole   @default(USER)
-  status       UserStatus @default(ACTIVE)
-  tokenVersion Int        @default(0)
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  scans           Scan[]
-  reports         ScamReport[]     @relation("ReportAuthor")
-  reviewedReports ScamReport[]     @relation("ReportReviewer")
-  communityPosts  CommunityPost[]  @relation("PostAuthor")
-
-  @@index([role])
-  @@index([status])
+enum user_role {
+  USER
+  ADMIN
 }
 
-// A Scan is a private, automated assessment. It becomes report evidence only
-// when its owner explicitly requests a moderator review.
-model Scan {
-  id              String         @id @default(cuid())
-  // Nullable only for pre-ownership scans retained during migration. New scans
-  // are always created for the authenticated user by the API.
-  userId          String?
-  inputType       ScanInputType
-  rawInput        String         @db.LongText
-  normalizedInput String         @db.LongText
-  findings        Json
-  assessment      ScanAssessment
-  deterministicAssessment ScanAssessment?
-  score           Int
-  analysisSummary String?        @db.Text
-  analysisReasons Json?
-  recommendedActions Json?
-  analysisSource  String?        @db.VarChar(50)
-  citedCaseIds    Json?
-  retrievalEvidence Json?
-  reportStatus    ScanReportStatus @default(NOT_REPORTED)
-  createdAt       DateTime       @default(now())
-
-  user            User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  report          ScamReport?
-  scamCaseMatches ScanScamCaseMatch[]
-
-  @@index([assessment, createdAt])
-  @@index([userId, createdAt])
-  @@index([reportStatus, createdAt])
+enum user_status {
+  ACTIVE
+  SUSPENDED
+  BANNED
 }
 
-// Administrator-managed, human-readable detection knowledge. Terms are plain
-// phrases, never executable regular expressions, so changes stay safe to review.
-model DetectionRule {
-  id             String                @id @default(cuid())
-  code           String                @unique @db.VarChar(100)
-  title          String                @db.VarChar(160)
-  description    String                @db.Text
-  severity       DetectionRuleSeverity
-  weight         Int
-  matchTerms     Json
-  languages      Json
-  recommendation String?               @db.Text
-  source         String                @db.VarChar(255)
-  verified       Boolean               @default(false)
-  enabled        Boolean               @default(true)
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
-
-  @@index([enabled, severity])
-}
-
-// ScamCase is the authoritative catalogue imported from data/scam_datas.csv.
-// A future embedding worker creates vector documents directly from this record,
-// using stable case/chunk IDs in the vector store.
-model ScamCase {
-  // The CSV's stable identifier is retained so imports can be idempotent.
-  id          Int       @id @default(autoincrement())
-  title       String    @db.VarChar(255)
-  scamType    String    @db.VarChar(100)
-  description String    @db.Text
-  sampleText  String    @db.LongText
-  indicators  Json
-  riskLevel   RiskLevel
-  source      String    @db.VarChar(255)
-  verified    Boolean   @default(false)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-
-  scanMatches ScanScamCaseMatch[]
-
-  @@index([scamType, riskLevel])
-  @@index([verified])
-}
-
-model ScanScamCaseMatch {
-  scanId      String
-  scamCaseId  Int
-  similarity  Int
-  matchReason String    @db.VarChar(500)
-  createdAt   DateTime  @default(now())
-
-  scan     Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
-  scamCase ScamCase @relation(fields: [scamCaseId], references: [id], onDelete: Cascade)
-
-  @@id([scanId, scamCaseId])
-  @@index([scamCaseId])
-}
-
-model ScamReport {
-  id           String       @id @default(cuid())
-  userId       String
-  // Nullable only to preserve reports created by the retired direct-submission flow.
-  // All reports created by current routes reference an owned scan.
-  scanId       String?      @unique
-  title        String?      @db.VarChar(255)
-  content      String       @db.LongText
-  sourceUrl    String?      @db.VarChar(512)
-  status       ReportStatus @default(PENDING)
-  reviewNote   String?      @db.Text
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-
-  user          User          @relation("ReportAuthor", fields: [userId], references: [id], onDelete: Cascade)
-  scan          Scan?         @relation(fields: [scanId], references: [id], onDelete: SetNull)
-  reviewedBy    User?         @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
-  communityPost CommunityPost?
-
-  @@index([userId, createdAt])
-  @@index([status, createdAt])
-  @@index([reviewedById])
-}
-
-model CommunityPost {
-  id          String   @id @default(cuid())
-  reportId    String   @unique
-  authorId    String
-  title       String   @db.VarChar(255)
-  summary     String   @db.VarChar(500)
-  content     String   @db.LongText
-  publishedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  report ScamReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
-  author User       @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
-
-  @@index([publishedAt])
+enum scan_reportStatus {
+  NOT_REPORTED
+  REPORTED
 }

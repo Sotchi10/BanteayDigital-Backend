@@ -1,0 +1,4 @@
+ALTER TABLE `Scan`
+  ADD COLUMN `imageStoragePath` VARCHAR(512) NULL,
+  ADD COLUMN `imageMimeType` VARCHAR(100) NULL,
+  ADD COLUMN `imageSize` INTEGER NULL;
