@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { extractToken } from '../src/middleware/auth.middleware.js'
+import { extractToken, requireAuth, setAuthRepositoryForTests } from '../src/middleware/auth.middleware.js'
+import { signToken } from '../src/utils/auth.js'
 
 test('extractToken prefers an explicit bearer token over a cookie token', () => {
   const request = {
@@ -26,4 +27,21 @@ test('extractToken accepts a case-insensitive bearer scheme and tolerates absent
   }
 
   assert.equal(extractToken(request), 'token-with-extra-space')
+})
+
+test('a token issued before logout is rejected after token-version invalidation', async (t) => {
+  const oldToken = signToken('user-a', 0)
+  setAuthRepositoryForTests({
+    user: { findUnique: async () => ({ id: 'user-a', tokenVersion: 1, role: 'USER', status: 'ACTIVE' }) },
+  })
+  t.after(() => setAuthRepositoryForTests())
+
+  const error = await new Promise((resolve) => requireAuth(
+    { cookies: {}, get: (header) => header === 'authorization' ? `Bearer ${oldToken}` : undefined },
+    {},
+    resolve,
+  ))
+
+  assert.equal(error.statusCode, 401)
+  assert.match(error.message, /revoked/)
 })

@@ -6,13 +6,20 @@ let communityRepository = prisma
 let imageUrlResolver = getPublicScanImageUrl
 
 const publicPostWhere = { report: { is: { status: 'APPROVED' } } }
-const publicAuthorSelect = { id: true, name: true, avatarUrl: true }
+const publicAuthorSelect = { id: true, name: true, username: true, avatarUrl: true }
 
 const postInclude = (userId) => ({
   author: { select: publicAuthorSelect },
   // A post only exposes the original screenshot after its report has been
   // approved. Do not return the report itself (which may contain private data).
-  report: { select: { scan: { select: { imageStoragePath: true } } } },
+  report: {
+    select: {
+      scan: { select: { imageStoragePath: true } },
+      // CommunityPost.author is the moderator who published the post. The
+      // report user is the member who originally submitted it.
+      user: { select: publicAuthorSelect },
+    },
+  },
   _count: {
     select: {
       likes: true,
@@ -24,10 +31,16 @@ const postInclude = (userId) => ({
 })
 
 const serializePost = async (post) => {
-  const { _count, likes, report, ...publicPost } = post
+  const { _count, likes, report, author: moderator, ...publicPost } = post
   const imageUrl = await imageUrlResolver(report?.scan?.imageStoragePath)
+  const author = report?.user?.username
+    ? report.user
+    : moderator?.username
+      ? moderator
+      : { id: null, username: 'BanteayDigital', name: 'BanteayDigital Safety Team', avatarUrl: null }
   return {
     ...publicPost,
+    author,
     ...(imageUrl ? { imageUrl } : {}),
     interaction: {
       likeCount: _count?.likes || 0,

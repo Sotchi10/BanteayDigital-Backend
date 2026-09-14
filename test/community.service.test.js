@@ -20,7 +20,7 @@ test('post list exposes counts and the current user like state', async (t) => {
     communityPost: {
       findMany: async () => [{
         id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
-        report: { scan: { imageStoragePath: 'scans/user-1/scan.png' } },
+        report: { scan: { imageStoragePath: 'scans/user-1/scan.png' }, user: { id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null } },
         _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }],
       }],
       count: async () => 1,
@@ -36,6 +36,26 @@ test('post list exposes counts and the current user like state', async (t) => {
   assert.equal(result.posts[0].imageUrl, 'https://cdn.example/scans/user-1/scan.png')
   assert.equal('likes' in result.posts[0], false)
   assert.equal('report' in result.posts[0], false)
+  assert.equal(result.posts[0].author.username, 'user-a')
+})
+
+test('community posts display their reporters and only fall back when a reporter has no username', async (t) => {
+  const moderator = { id: 'admin-1', username: 'moderator', name: 'Moderator', avatarUrl: null }
+  setCommunityRepositoryForTests({
+    communityPost: {
+      findMany: async () => [
+        { id: 'post-a', author: moderator, report: { scan: {}, user: { id: 'user-a', username: 'user-a', name: 'User A', avatarUrl: 'https://cdn.example/a.png' } }, _count: {} },
+        { id: 'post-b', author: moderator, report: { scan: {}, user: { id: 'user-b', username: 'user-b', name: 'User B', avatarUrl: null } }, _count: {} },
+        { id: 'post-c', author: moderator, report: { scan: {}, user: { id: 'legacy-user', username: null, name: 'Legacy User', avatarUrl: null } }, _count: {} },
+      ],
+      count: async () => 3,
+    },
+  })
+  t.after(() => setCommunityRepositoryForTests())
+
+  const result = await listPosts({ query: { page: 1, limit: 20 } })
+  assert.deepEqual(result.posts.map((post) => post.author.username), ['user-a', 'user-b', 'moderator'])
+  assert.equal(result.posts[0].author.avatarUrl, 'https://cdn.example/a.png')
 })
 
 test('a share records its channel and returns the current count', async (t) => {

@@ -9,6 +9,15 @@ const tokenCookieOptions = {
   path: '/',
 }
 
+// Cookie deletion must use the same scope attributes as the cookie that was
+// issued. Do not include maxAge/expires when clearing it.
+const tokenClearCookieOptions = {
+  httpOnly: tokenCookieOptions.httpOnly,
+  secure: tokenCookieOptions.secure,
+  sameSite: tokenCookieOptions.sameSite,
+  path: tokenCookieOptions.path,
+}
+
 const signToken = (userId, tokenVersion, role = 'USER') =>
   jwt.sign({ sub: userId, tokenVersion, role }, env.jwtSecret, { expiresIn: env.jwtExpiresIn })
 
@@ -26,4 +35,4 @@ const publicUser = (user) => ({
   updatedAt: user.updatedAt,
 })
 
-export { publicUser, signToken, tokenCookieOptions }
+export { publicUser, signToken, tokenClearCookieOptions, tokenCookieOptions }
