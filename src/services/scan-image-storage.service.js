@@ -4,6 +4,7 @@ import ApiError from '../utils/api-error.js'
 
 let storageClient
 const PUBLIC_POST_IMAGE_TTL_SECONDS = 5 * 60
+const supportedImageTypes = new Set(['image/png', 'image/jpeg', 'image/webp'])
 
 const isSafeScanImagePath = (value) => (
   typeof value === 'string'
@@ -22,6 +23,10 @@ const getStorageClient = () => {
 }
 
 const uploadScanImage = async ({ path, image }) => {
+  if (!isSafeScanImagePath(path) || !image || !Buffer.isBuffer(image.buffer) || !supportedImageTypes.has(image.mimetype)) {
+    throw new ApiError(400, 'Invalid image upload')
+  }
+
   const { error } = await getStorageClient().storage.from(env.supabaseStorageBucket).upload(path, image.buffer, {
     contentType: image.mimetype,
     upsert: false,

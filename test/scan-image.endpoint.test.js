@@ -21,8 +21,8 @@ const startServer = async (t) => {
 const configureImageScanDependencies = (t) => {
   setImageStorageForTests({
     uploader: async ({ path, image }) => {
-      assert.match(path, /^scans\/user-1\/[0-9a-f-]+\/scan\.png$/)
-      assert.equal(image.size, 10)
+      assert.match(path, /^scans\/user-1\/[0-9a-f-]+\/image\.png$/)
+      assert.equal(image.size, 8)
       return path
     },
     remover: async () => {},
@@ -32,8 +32,8 @@ const configureImageScanDependencies = (t) => {
     scamCase: { findMany: async () => [] },
     scan: { create: async ({ data, select }) => {
       assert.equal(data.imageMimeType, 'image/png')
-      assert.equal(data.imageSize, 10)
-      assert.match(data.imageStoragePath, /^scans\/user-1\/[0-9a-f-]+\/scan\.png$/)
+      assert.equal(data.imageSize, 8)
+      assert.match(data.imageStoragePath, /^scans\/user-1\/[0-9a-f-]+\/image\.png$/)
       const record = { id: 'image-scan-1', createdAt: new Date('2026-09-12T00:00:00.000Z'), scamCaseMatches: [], ...data }
       return Object.fromEntries(Object.keys(select).map((key) => [key, key === 'scamCaseMatches' ? [] : record[key]]))
     } },
@@ -64,7 +64,7 @@ test('POST /api/v1/scans analyzes an IMAGE through the text scan flow', async (t
   const baseUrl = await startServer(t)
   const form = new FormData()
   form.append('inputType', 'IMAGE')
-  form.append('image', new Blob(['fake image'], { type: 'image/png' }), 'scan.png')
+  form.append('image', new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: 'image/png' }), 'scan.png')
 
   const response = await fetch(`${baseUrl}/api/v1/scans`, {
     method: 'POST',
@@ -114,7 +114,7 @@ test('POST /api/v1/scans returns NO_READABLE_TEXT without retrieval', async (t) 
   const baseUrl = await startServer(t)
   const form = new FormData()
   form.append('inputType', 'IMAGE')
-  form.append('image', new Blob(['fake image'], { type: 'image/png' }), 'empty.png')
+  form.append('image', new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: 'image/png' }), 'empty.png')
 
   const response = await fetch(`${baseUrl}/api/v1/scans`, {
     method: 'POST',
@@ -127,5 +127,5 @@ test('POST /api/v1/scans returns NO_READABLE_TEXT without retrieval', async (t) 
     message: 'No readable text was found in the image',
     details: { code: 'NO_READABLE_TEXT' },
   })
-  assert.match(removedPath, /^scans\/user-1\/[0-9a-f-]+\/empty\.png$/)
+  assert.match(removedPath, /^scans\/user-1\/[0-9a-f-]+\/image\.png$/)
 })

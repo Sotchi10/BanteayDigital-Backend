@@ -8,16 +8,22 @@ let ocrExtractor = extractImageText
 let imageUploader = uploadScanImage
 let imageRemover = removeScanImage
 
-const storageFilename = (filename) => filename
-  .replace(/[^a-zA-Z0-9._-]/g, '-')
-  .replace(/-+/g, '-')
-  .slice(-160) || 'scan-image'
+const imageExtensions = {
+  'image/png': 'png',
+  'image/jpeg': 'jpg',
+  'image/webp': 'webp',
+}
+
+const isSafeStorageSegment = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value)
 
 const createImageScan = async ({ userId, image }) => {
   if (!image) throw new ApiError(400, 'An image file is required')
+  if (!isSafeStorageSegment(userId) || !imageExtensions[image.mimetype]) {
+    throw new ApiError(400, 'Invalid image upload')
+  }
 
   const scanId = randomUUID()
-  const path = `scans/${userId}/${scanId}/${storageFilename(image.originalname)}`
+  const path = `scans/${userId}/${scanId}/image.${imageExtensions[image.mimetype]}`
   let storagePath
   try {
     const extraction = await ocrExtractor(image)

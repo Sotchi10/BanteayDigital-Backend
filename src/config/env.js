@@ -6,6 +6,19 @@ const cookieSameSite = process.env.COOKIE_SAME_SITE || (nodeEnv === 'production'
 const aiMatchMinimumScore = Number(process.env.AI_MATCH_MIN_SCORE || 0.65)
 const aiMatchConfidenceThreshold = Number(process.env.AI_MATCH_CONFIDENCE_THRESHOLD || 0.75)
 
+const positiveInteger = (name, fallback) => {
+  const value = Number(process.env[name] || fallback)
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`${name} must be a positive integer`)
+  }
+  return value
+}
+
+const authRateLimitWindowMs = positiveInteger('AUTH_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000)
+const aiRateLimitWindowMs = positiveInteger('AI_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000)
+const uploadRateLimitWindowMs = positiveInteger('UPLOAD_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000)
+const reportRateLimitWindowMs = positiveInteger('REPORT_RATE_LIMIT_WINDOW_MS', 15 * 60 * 1000)
+
 if (!jwtSecret && nodeEnv === 'production') {
   throw new Error('JWT_SECRET must be set in production')
 }
@@ -35,6 +48,14 @@ const env = {
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || null,
   aiMatchMinimumScore,
   aiMatchConfidenceThreshold,
+  authRateLimitWindowMs,
+  authRateLimitMax: positiveInteger('AUTH_RATE_LIMIT_MAX', 10),
+  aiRateLimitWindowMs,
+  aiRateLimitMax: positiveInteger('AI_RATE_LIMIT_MAX', 20),
+  uploadRateLimitWindowMs,
+  uploadRateLimitMax: positiveInteger('UPLOAD_RATE_LIMIT_MAX', 10),
+  reportRateLimitWindowMs,
+  reportRateLimitMax: positiveInteger('REPORT_RATE_LIMIT_MAX', 60),
   clientOrigins: (process.env.CLIENT_ORIGINS || 'http://localhost:5173')
     .split(',')
     .map((origin) => origin.trim())
