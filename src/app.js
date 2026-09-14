@@ -198,7 +198,7 @@ function registerApiRoutes(app) {
   app.use('/api/v1/auth', authRoutes)
   app.use('/api/v1/reports', reportRoutes)
   app.use('/api/v1/admin', adminRoutes)
-  app.use('/api/v1/community/posts', communityRoutes)
+  app.use('/api/v1/community', communityRoutes)
 }
 
 function registerErrorHandlers(app) {

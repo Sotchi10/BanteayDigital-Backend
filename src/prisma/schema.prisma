@@ -192,6 +192,7 @@ enum scan_deterministicAssessment {
   UNABLE_TO_ASSESS
 }
 
+<<<<<<< HEAD
 enum user_role {
   USER
   ADMIN
@@ -206,4 +207,250 @@ enum user_status {
 enum scan_reportStatus {
   NOT_REPORTED
   REPORTED
+=======
+enum CommentStatus {
+  ACTIVE
+  DELETED
+  HIDDEN
+}
+
+enum CommentReportReason {
+  SPAM
+  HARASSMENT
+  DANGEROUS_LINK
+  MISINFORMATION
+  OTHER
+}
+
+enum PostShareChannel {
+  NATIVE
+  TELEGRAM
+  COPY_LINK
+}
+
+model User {
+  id           String     @id @default(cuid())
+  phone_num    String?    @unique
+  email        String?    @unique
+  passwordHash String
+  name         String?
+  age          Int?
+  avatarUrl    String?    @db.VarChar(512)
+  role         UserRole   @default(USER)
+  status       UserStatus @default(ACTIVE)
+  tokenVersion Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  scans           Scan[]
+  reports         ScamReport[]    @relation("ReportAuthor")
+  reviewedReports ScamReport[]    @relation("ReportReviewer")
+  communityPosts  CommunityPost[] @relation("PostAuthor")
+  postLikes       PostLike[]
+  postShares      PostShare[]
+  comments        Comment[]       @relation("CommentAuthor")
+  commentReports  CommentReport[] @relation("CommentReporter")
+
+  @@index([role])
+  @@index([status])
+}
+
+// A Scan is a private, automated assessment. It becomes report evidence only
+// when its owner explicitly requests a moderator review.
+model Scan {
+  id                      String           @id @default(cuid())
+  // Nullable only for pre-ownership scans retained during migration. New scans
+  // are always created for the authenticated user by the API.
+  userId                  String?
+  inputType               ScanInputType
+  rawInput                String           @db.LongText
+  normalizedInput         String           @db.LongText
+  findings                Json
+  assessment              ScanAssessment
+  deterministicAssessment ScanAssessment?
+  score                   Int
+  analysisSummary         String?          @db.Text
+  analysisReasons         Json?
+  recommendedActions      Json?
+  analysisSource          String?          @db.VarChar(50)
+  citedCaseIds            Json?
+  retrievalEvidence       Json?
+  reportStatus            ScanReportStatus @default(NOT_REPORTED)
+  createdAt               DateTime         @default(now())
+
+  user            User?               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  report          ScamReport?
+  scamCaseMatches ScanScamCaseMatch[]
+
+  @@index([assessment, createdAt])
+  @@index([userId, createdAt])
+  @@index([reportStatus, createdAt])
+}
+
+// Administrator-managed, human-readable detection knowledge. Terms are plain
+// phrases, never executable regular expressions, so changes stay safe to review.
+model DetectionRule {
+  id             String                @id @default(cuid())
+  code           String                @unique @db.VarChar(100)
+  title          String                @db.VarChar(160)
+  description    String                @db.Text
+  severity       DetectionRuleSeverity
+  weight         Int
+  matchTerms     Json
+  languages      Json
+  recommendation String?               @db.Text
+  source         String                @db.VarChar(255)
+  verified       Boolean               @default(false)
+  enabled        Boolean               @default(true)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  @@index([enabled, severity])
+}
+
+// ScamCase is the authoritative catalogue imported from data/scam_datas.csv.
+// A future embedding worker creates vector documents directly from this record,
+// using stable case/chunk IDs in the vector store.
+model ScamCase {
+  // The CSV's stable identifier is retained so imports can be idempotent.
+  id          Int       @id @default(autoincrement())
+  title       String    @db.VarChar(255)
+  scamType    String    @db.VarChar(100)
+  description String    @db.Text
+  sampleText  String    @db.LongText
+  indicators  Json
+  riskLevel   RiskLevel
+  source      String    @db.VarChar(255)
+  verified    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  scanMatches ScanScamCaseMatch[]
+
+  @@index([scamType, riskLevel])
+  @@index([verified])
+}
+
+model ScanScamCaseMatch {
+  scanId      String
+  scamCaseId  Int
+  similarity  Int
+  matchReason String   @db.VarChar(500)
+  createdAt   DateTime @default(now())
+
+  scan     Scan     @relation(fields: [scanId], references: [id], onDelete: Cascade)
+  scamCase ScamCase @relation(fields: [scamCaseId], references: [id], onDelete: Cascade)
+
+  @@id([scanId, scamCaseId])
+  @@index([scamCaseId])
+}
+
+model ScamReport {
+  id           String       @id @default(cuid())
+  userId       String
+  // Nullable only to preserve reports created by the retired direct-submission flow.
+  // All reports created by current routes reference an owned scan.
+  scanId       String?      @unique
+  title        String?      @db.VarChar(255)
+  content      String       @db.LongText
+  sourceUrl    String?      @db.VarChar(512)
+  status       ReportStatus @default(PENDING)
+  reviewNote   String?      @db.Text
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  user          User           @relation("ReportAuthor", fields: [userId], references: [id], onDelete: Cascade)
+  scan          Scan?          @relation(fields: [scanId], references: [id], onDelete: SetNull)
+  reviewedBy    User?          @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  communityPost CommunityPost?
+
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([reviewedById])
+}
+
+model CommunityPost {
+  id          String   @id @default(cuid())
+  reportId    String   @unique
+  authorId    String
+  title       String   @db.VarChar(255)
+  summary     String   @db.VarChar(500)
+  content     String   @db.LongText
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  report   ScamReport  @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  author   User        @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  likes    PostLike[]
+  shares   PostShare[]
+  comments Comment[]
+
+  @@index([publishedAt])
+>>>>>>> 7cfdaa9084805e2ad0b8a83216277ddb6ea51edd
+}
+
+model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+}
+
+model PostShare {
+  id        String           @id @default(cuid())
+  postId    String
+  userId    String?
+  channel   PostShareChannel
+  createdAt DateTime         @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([postId, createdAt])
+  @@index([userId, createdAt])
+}
+
+model Comment {
+  id        String        @id @default(cuid())
+  postId    String
+  authorId  String
+  parentId  String?
+  content   String        @db.Text
+  status    CommentStatus @default(ACTIVE)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  post    CommunityPost   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author  User            @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  parent  Comment?        @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Comment[]       @relation("CommentReplies")
+  reports CommentReport[]
+
+  @@index([postId, status, createdAt])
+  @@index([parentId, createdAt])
+  @@index([authorId, createdAt])
+}
+
+model CommentReport {
+  id         String              @id @default(cuid())
+  commentId  String
+  reporterId String
+  reason     CommentReportReason
+  details    String?             @db.VarChar(500)
+  createdAt  DateTime            @default(now())
+
+  comment  Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  reporter User    @relation("CommentReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, reporterId])
+  @@index([createdAt])
 }

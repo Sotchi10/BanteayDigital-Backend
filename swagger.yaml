@@ -16,6 +16,7 @@ tags:
   - name: Admin Reports
   - name: Admin Detection Rules
   - name: Community Posts
+  - name: Community Comments
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -23,6 +24,9 @@ components:
     Id: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
     Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
     Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 20 } }
+    CommentLimit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 50, default: 20 } }
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    ParentId: { name: parentId, in: query, schema: { type: string } }
   schemas:
     ScanInput:
       type: object
@@ -91,6 +95,28 @@ components:
         source: { type: string }
         verified: { type: boolean }
         enabled: { type: boolean }
+    CommentInput:
+      type: object
+      required: [content]
+      properties:
+        content: { type: string, minLength: 1, maxLength: 1000 }
+        parentId: { type: string, nullable: true, description: Replies may target only an active top-level comment. }
+    CommentReportInput:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string, enum: [SPAM, HARASSMENT, DANGEROUS_LINK, MISINFORMATION, OTHER] }
+        details: { type: string, maxLength: 500 }
+    CommentModerationInput:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, enum: [ACTIVE, HIDDEN] }
+    PostShareInput:
+      type: object
+      required: [channel]
+      properties:
+        channel: { type: string, enum: [NATIVE, TELEGRAM, COPY_LINK] }
     Error:
       type: object
       required: [message]
@@ -278,3 +304,80 @@ paths:
       summary: Get one published community alert
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses: { '200': { description: Community post found. }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/community/posts/{id}/like:
+    put:
+      tags: [Community Posts]
+      security: [{ bearerAuth: [] }]
+      summary: Mark a community alert as helpful
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Helpful state and current count returned. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Community Posts]
+      security: [{ bearerAuth: [] }]
+      summary: Remove the current user's helpful mark
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Helpful state and current count returned. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/community/posts/{id}/shares:
+    post:
+      tags: [Community Posts]
+      summary: Record a completed native, Telegram, or copy-link share action
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/PostShareInput' } } }
+      responses: { '201': { description: Share recorded and current count returned. }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/community/posts/{id}/comments:
+    get:
+      tags: [Community Comments]
+      summary: List top-level comments or replies with cursor pagination
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/CommentLimit' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - { $ref: '#/components/parameters/ParentId' }
+      responses: { '200': { description: Comments found. }, '404': { $ref: '#/components/responses/NotFound' } }
+    post:
+      tags: [Community Comments]
+      security: [{ bearerAuth: [] }]
+      summary: Add a comment or one-level reply
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CommentInput' } } }
+      responses: { '201': { description: Comment created. }, '401': { $ref: '#/components/responses/Unauthorized' }, '429': { description: Comment rate limit exceeded. } }
+  /api/v1/community/comments/{id}:
+    patch:
+      tags: [Community Comments]
+      security: [{ bearerAuth: [] }]
+      summary: Edit the current user's active comment
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CommentInput' } } }
+      responses: { '200': { description: Comment updated. }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Community Comments]
+      security: [{ bearerAuth: [] }]
+      summary: Soft-delete the current user's comment
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Comment deleted. }, '403': { $ref: '#/components/responses/Forbidden' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/community/comments/{id}/report:
+    post:
+      tags: [Community Comments]
+      security: [{ bearerAuth: [] }]
+      summary: Report an active comment for moderation
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CommentReportInput' } } }
+      responses: { '201': { description: Report submitted. }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/community/comments/{id}/moderation:
+    patch:
+      tags: [Community Comments]
+      security: [{ bearerAuth: [] }]
+      summary: Hide or restore a comment (administrator only)
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/CommentModerationInput' } } }
+      responses: { '200': { description: Moderation state updated. }, '403': { $ref: '#/components/responses/Forbidden' } }
