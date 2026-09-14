@@ -54,7 +54,7 @@ const retrieveSimilarScamCases = async ({ type, value, limit = 3 }) => {
   return response.json()
 }
 
-const analyzeScan = async ({ type, value, deterministicFindings, retrievedCases }) => {
+const analyzeScan = async ({ type, value, language = 'en', deterministicFindings, retrievedCases }) => {
   if (!env.aiServiceUrl) {
     throw new ApiError(503, 'AI service is not configured')
   }
@@ -68,7 +68,7 @@ const analyzeScan = async ({ type, value, deterministicFindings, retrievedCases 
         'Content-Type': 'application/json',
         ...(env.aiServiceApiKey ? { 'X-AI-Service-Key': env.aiServiceApiKey } : {}),
       },
-      body: JSON.stringify({ type, value, deterministicFindings, retrievedCases }),
+      body: JSON.stringify({ type, value, language: language === 'km' ? 'km' : 'en', deterministicFindings, retrievedCases }),
       signal: AbortSignal.timeout(15000),
     })
   } catch {

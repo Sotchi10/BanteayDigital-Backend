@@ -16,7 +16,7 @@ const imageExtensions = {
 
 const isSafeStorageSegment = (value) => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,128}$/.test(value)
 
-const createImageScan = async ({ userId, image }) => {
+const createImageScan = async ({ userId, image, language }) => {
   if (!image) throw new ApiError(400, 'An image file is required')
   if (!isSafeStorageSegment(userId) || !imageExtensions[image.mimetype]) {
     throw new ApiError(400, 'Invalid image upload')
@@ -44,7 +44,7 @@ const createImageScan = async ({ userId, image }) => {
     // remains on the established text-analysis path. Store IMAGE so the scan's
     // provenance remains accurate without sending an unsupported type to AI APIs.
     return await createScan({
-      id: scanId, userId, type: 'TEXT', inputType: 'IMAGE', value: text,
+      id: scanId, userId, type: 'TEXT', inputType: 'IMAGE', value: text, language,
       imageMetadata: { ...(storagePath ? { imageStoragePath: storagePath } : {}), imageMimeType: image.mimetype, imageSize: image.size },
     })
   } catch (error) {

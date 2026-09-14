@@ -8,6 +8,7 @@ import { signToken } from '../src/utils/auth.js'
 
 test('POST /api/v1/scans validates, scans, saves, and returns a result', async (t) => {
   const saved = []
+  let analyzerLanguage
   setScanRepositoryForTests({
     scamCase: { findMany: async () => [] },
     scan: { create: async ({ data, select }) => {
@@ -25,13 +26,16 @@ test('POST /api/v1/scans validates, scans, saves, and returns a result', async (
     ],
   }))
   t.after(() => setAiRetrieverForTests())
-  setAiAnalyzerForTests(async () => ({
-    assessment: 'SUSPICIOUS',
-    summary: 'The message requests an OTP and resembles a retrieved case.',
-    reasons: ['It requests an OTP.'],
-    recommendedActions: ['Do not share your OTP.'],
-    citedCaseIds: [1],
-  }))
+  setAiAnalyzerForTests(async ({ language }) => {
+    analyzerLanguage = language
+    return {
+      assessment: 'SUSPICIOUS',
+      summary: 'The message requests an OTP and resembles a retrieved case.',
+      reasons: ['It requests an OTP.'],
+      recommendedActions: ['Do not share your OTP.'],
+      citedCaseIds: [1],
+    }
+  })
   t.after(() => setAiAnalyzerForTests())
   setAuthRepositoryForTests({
     user: { findUnique: async () => ({ id: 'user-1', tokenVersion: 0, role: 'USER', status: 'ACTIVE' }) },
@@ -44,7 +48,7 @@ test('POST /api/v1/scans validates, scans, saves, and returns a result', async (
   const { port } = server.address()
   const response = await fetch(`http://127.0.0.1:${port}/api/v1/scans`, {
     method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${signToken('user-1', 0)}` },
-    body: JSON.stringify({ type: 'TEXT', value: 'Urgent: please send your OTP now.' }),
+    body: JSON.stringify({ type: 'TEXT', value: 'Urgent: please send your OTP now.', language: 'km' }),
   })
   const body = await response.json()
 
@@ -56,6 +60,7 @@ test('POST /api/v1/scans validates, scans, saves, and returns a result', async (
   assert.equal(saved.length, 1)
   assert.equal(saved[0].inputType, 'TEXT')
   assert.equal(saved[0].userId, 'user-1')
+  assert.equal(analyzerLanguage, 'km')
   assert.ok(Array.isArray(body.scan.recommendations))
   assert.deepEqual(body.scan.matchedScamCases, [])
   assert.deepEqual(body.scan.aiMatches, [
@@ -88,4 +93,27 @@ test('TEXT scanning retains deterministic warnings when retrieval and AI fail', 
   assert.equal(scan.analysis.source, 'DETERMINISTIC_FALLBACK')
   assert.equal(scan.aiRetrieval.status, 'UNAVAILABLE')
   assert.ok(scan.findings.some((item) => item.code === 'OTP_OR_VERIFICATION_CODE_REQUEST'))
+})
+
+test('Khmer scans retain Khmer warnings and safety recommendations when AI is unavailable', async (t) => {
+  setScanRepositoryForTests({
+    scan: {
+      create: async ({ data, select }) => {
+        const record = { id: 'scan-khmer-fallback', createdAt: new Date(), scamCaseMatches: [], ...data }
+        return Object.fromEntries(Object.keys(select).map((key) => [key, key === 'scamCaseMatches' ? [] : record[key]]))
+      },
+    },
+  })
+  t.after(() => setScanRepositoryForTests())
+  setAiRetrieverForTests(async () => { throw new Error('Qdrant unavailable') })
+  t.after(() => setAiRetrieverForTests())
+  setAiAnalyzerForTests(async () => { throw new Error('AI unavailable') })
+  t.after(() => setAiAnalyzerForTests())
+
+  const { createScan } = await import('../src/services/scan.service.js')
+  const scan = await createScan({ userId: 'user-1', type: 'TEXT', value: 'Urgent: send your OTP now.', language: 'km' })
+
+  assert.match(scan.analysis.summary, /[\u1780-\u17ff]/)
+  assert.ok(scan.analysis.reasons.every((reason) => /[\u1780-\u17ff]/.test(reason)))
+  assert.ok(scan.analysis.recommendedActions.every((action) => /[\u1780-\u17ff]/.test(action)))
 })

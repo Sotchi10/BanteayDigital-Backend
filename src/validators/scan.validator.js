@@ -1,6 +1,12 @@
 import { z } from 'zod'
 
 const scanTypeSchema = z.enum(['TEXT', 'URL'])
+// Language only controls the AI explanation. Unknown or absent values preserve
+// existing behaviour by using English instead of rejecting a scan request.
+const analysisLanguageSchema = z.preprocess(
+  (value) => value === 'km' ? 'km' : 'en',
+  z.enum(['en', 'km']),
+)
 
 const scanSchema = z.object({
   inputType: scanTypeSchema.optional(),
@@ -8,6 +14,7 @@ const scanSchema = z.object({
   // documented inputType discriminator.
   type: scanTypeSchema.optional(),
   value: z.string().trim().min(1, 'Scan value is required').max(10000),
+  language: analysisLanguageSchema,
 }).superRefine((data, context) => {
   if (!data.inputType && !data.type) {
     context.addIssue({ code: 'custom', path: ['inputType'], message: 'inputType is required' })
@@ -25,10 +32,11 @@ const scanSchema = z.object({
   } catch {
     context.addIssue({ code: 'custom', path: ['value'], message: 'A valid http or https URL is required' })
   }
-}).transform(({ inputType, type, value }) => ({ inputType: inputType || type, value }))
+}).transform(({ inputType, type, value, language }) => ({ inputType: inputType || type, value, language }))
 
 const imageScanSchema = z.object({
   inputType: z.literal('IMAGE'),
+  language: analysisLanguageSchema,
 })
 
 const scanIdParamSchema = z.object({

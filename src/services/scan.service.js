@@ -19,9 +19,22 @@ const scanSelect = {
 
 const emptyRetrievalEvidence = { status: 'NOT_REQUESTED', minimumScore: env.aiMatchMinimumScore, confidenceThreshold: env.aiMatchConfidenceThreshold, matches: [] }
 
-const insufficientAnalysis = (summary) => ({
+const khmerFallback = {
+  insufficientEvidence: 'មិនមានភស្តុតាងគ្រប់គ្រាន់ពីការពិនិត្យ ឬករណីស្រដៀងគ្នា ដើម្បីវាយតម្លៃខ្លឹមសារនេះទេ។',
+  reasoningUnavailable: 'សេវាវិភាគ AI មិនអាចប្រើបានសម្រាប់ការពិនិត្យនេះទេ។',
+  deterministicSummary: 'ការពិនិត្យស្វ័យប្រវត្តិបានរកឃើញសញ្ញាហានិភ័យនៃការឆបោក។ សេវាវិភាគ AI មិនអាចប្រើបានទេ ដូច្នេះលទ្ធផលនេះផ្អែកលើសញ្ញាដែលបានរាយបញ្ជីប៉ុណ្ណោះ។',
+  doNotShare: 'កុំចែករំលែកពាក្យសម្ងាត់ លេខកូដប្រើបានតែម្តង ព័ត៌មានធនាគារ ឬឯកសារអត្តសញ្ញាណ។',
+  verifyIndependently: 'ផ្ទៀងផ្ទាត់អ្នកផ្ញើ ឬស្ថាប័នតាមរយៈវិធីទំនាក់ទំនងដែលអ្នកស្វែងរកដោយឯករាជ្យ។',
+}
+
+const fallbackText = (language, english, khmer) => language === 'km' ? khmer : english
+
+const insufficientAnalysis = (summary, language = 'en') => ({
   assessment: 'INSUFFICIENT_EVIDENCE', summary, reasons: [summary],
-  recommendedActions: ['Do not share passwords, one-time codes, or banking details.', 'Verify the sender or organization through a contact method you find independently.'],
+  recommendedActions: [
+    fallbackText(language, 'Do not share passwords, one-time codes, or banking details.', khmerFallback.doNotShare),
+    fallbackText(language, 'Verify the sender or organization through a contact method you find independently.', khmerFallback.verifyIndependently),
+  ],
   citedCaseIds: [], source: 'EVIDENCE_GATE',
 })
 
@@ -34,11 +47,28 @@ const atLeastDeterministicAssessment = (deterministic, proposed) => (
   (assessmentRank[proposed] ?? 0) >= (assessmentRank[deterministic] ?? 0) ? proposed : deterministic
 )
 
-const deterministicAnalysis = ({ assessment, findings }) => ({
+const khmerFinding = (code) => ({
+  OTP_OR_VERIFICATION_CODE_REQUEST: 'សារនេះស្នើសុំលេខកូដផ្ទៀងផ្ទាត់ ឬ OTP។',
+  CREDENTIAL_OR_FINANCIAL_DETAIL_REQUEST: 'សារនេះស្នើសុំពាក្យសម្ងាត់ ឬព័ត៌មានហិរញ្ញវត្ថុ។',
+  URGENCY_OR_ACCOUNT_THREAT: 'សារនេះប្រើពាក្យបន្ទាន់ កាលកំណត់ ឬការគំរាមគណនី ដើម្បីដាក់សម្ពាធ។',
+  URGENCY_OR_THREAT_LANGUAGE: 'សារនេះប្រើពាក្យបន្ទាន់ ឬគំរាមកំហែងដើម្បីដាក់សម្ពាធ។',
+  COERCED_SENSITIVE_INFORMATION_REQUEST: 'សារនេះស្នើព័ត៌មានសម្ងាត់រួមជាមួយការដាក់សម្ពាធ ឬការគំរាមកំហែង។',
+  SUSPICIOUS_LINK: 'សារនេះមានតំណភ្ជាប់ដែលគួរពិនិត្យដោយប្រុងប្រយ័ត្ន។',
+  REMOTE_ACCESS_REQUEST: 'សារនេះស្នើឱ្យដំឡើងកម្មវិធី ឬផ្តល់សិទ្ធិចូលប្រើឧបករណ៍។',
+  INVESTMENT_OR_TASK_SCAM_PATTERN: 'សារនេះស្រដៀងនឹងលំនាំឆបោកវិនិយោគ ឬការងារបង់ប្រាក់។',
+  BLACKMAIL_OR_EXTORTION_THREAT: 'សារនេះមានលំនាំគំរាមកំហែង ឬជំរិតទារប្រាក់។',
+})[code]
+
+const deterministicAnalysis = ({ assessment, findings, language = 'en' }) => ({
   assessment,
-  summary: 'Automated checks found scam-risk indicators. AI reasoning was unavailable, so this result is based on the listed indicators only.',
-  reasons: findings.map((item) => item.message),
-  recommendedActions: ['Do not share passwords, one-time codes, banking details, or identity documents.', 'Verify the sender or organization through a contact method you find independently.'],
+  summary: fallbackText(language, 'Automated checks found scam-risk indicators. AI reasoning was unavailable, so this result is based on the listed indicators only.', khmerFallback.deterministicSummary),
+  reasons: language === 'km'
+    ? findings.map((item) => khmerFinding(item.code) || `បានរកឃើញសញ្ញាព្រមាន៖ ${item.code}`)
+    : findings.map((item) => item.message),
+  recommendedActions: [
+    fallbackText(language, 'Do not share passwords, one-time codes, banking details, or identity documents.', khmerFallback.doNotShare),
+    fallbackText(language, 'Verify the sender or organization through a contact method you find independently.', khmerFallback.verifyIndependently),
+  ],
   citedCaseIds: [], source: 'DETERMINISTIC_FALLBACK',
 })
 
@@ -91,17 +121,22 @@ const retrievalEvidenceFor = (status, matches) => ({
   matches: matches.map((match) => ({
     caseId: match.payload.caseId ?? null, title: match.payload.title ?? 'Unknown scam case',
     scamType: match.payload.scamType ?? 'unknown', riskLevel: match.payload.riskLevel ?? 'UNKNOWN',
+    // Preserve optional localized retrieval fields for later display. They do
+    // not participate in matching, scoring, or the stored enum values.
+    ...(typeof match.payload.titleKm === 'string' ? { titleKm: match.payload.titleKm } : {}),
+    ...(typeof match.payload.scamTypeKm === 'string' ? { scamTypeKm: match.payload.scamTypeKm } : {}),
+    ...(match.payload.translations?.km ? { translations: { km: match.payload.translations.km } } : {}),
     score: match.score, relation: match.relation, evidenceStatus: match.evidenceStatus,
   })),
 })
 
-const createAnalysis = async ({ type, value, findings, matches, deterministicAssessment }) => {
+const createAnalysis = async ({ type, value, findings, matches, deterministicAssessment, language = 'en' }) => {
   const hasEvidence = findings.length > 0 || matches.some((match) => match.relation === 'LIKELY_RELATED')
-  if (!hasEvidence) return insufficientAnalysis('There is not enough deterministic or retrieved evidence to assess this content.')
+  if (!hasEvidence) return insufficientAnalysis(fallbackText(language, 'There is not enough deterministic or retrieved evidence to assess this content.', khmerFallback.insufficientEvidence), language)
 
   try {
     const analysis = await aiAnalyzer({
-      type, value, deterministicFindings: findings,
+      type, value, language, deterministicFindings: findings,
       retrievedCases: matches.map((match) => ({
         caseId: match.payload.caseId, title: match.payload.title, scamType: match.payload.scamType,
         riskLevel: match.payload.riskLevel, score: match.score, verified: Boolean(match.payload.verified),
@@ -122,17 +157,19 @@ const createAnalysis = async ({ type, value, findings, matches, deterministicAss
   } catch {
     // Do not erase a concrete deterministic warning merely because the
     // optional AI service is down.
-    return findings.length ? deterministicAnalysis({ assessment: deterministicAssessment, findings }) : insufficientAnalysis('Grounded AI reasoning was unavailable for this scan.')
+    return findings.length
+      ? deterministicAnalysis({ assessment: deterministicAssessment, findings, language })
+      : insufficientAnalysis(fallbackText(language, 'Grounded AI reasoning was unavailable for this scan.', khmerFallback.reasoningUnavailable), language)
   }
 }
 
-const createScan = async ({ id, userId, type, value, inputType = type, imageMetadata }) => {
+const createScan = async ({ id, userId, type, value, inputType = type, imageMetadata, language = 'en' }) => {
   const knowledgeRules = type === 'TEXT' ? await loadActiveKnowledgeRules() : []
   const deterministic = runScan({ type, value, knowledgeRules })
   const retrieval = await retrieveMatches({ type, value })
   const aiMatches = describeMatches(retrieval.matches)
   const retrievalEvidence = retrievalEvidenceFor(retrieval.status, aiMatches)
-  const analysis = await createAnalysis({ type, value, findings: deterministic.findings, matches: aiMatches, deterministicAssessment: deterministic.deterministicAssessment })
+  const analysis = await createAnalysis({ type, value, findings: deterministic.findings, matches: aiMatches, deterministicAssessment: deterministic.deterministicAssessment, language: language === 'km' ? 'km' : 'en' })
   const scan = await scanRepository.scan.create({
     data: {
       ...(id ? { id } : {}), userId, inputType, ...(imageMetadata || {}), rawInput: value, normalizedInput: deterministic.normalizedInput,

@@ -4,8 +4,8 @@ import { createImageScan } from '../services/scan-image.service.js'
 
 const create = asyncHandler(async (request, response) => {
   const scan = request.body.inputType === 'IMAGE'
-    ? await createImageScan({ userId: request.auth.userId, image: request.file })
-    : await createScan({ userId: request.auth?.userId, type: request.body.inputType, value: request.body.value })
+    ? await createImageScan({ userId: request.auth.userId, image: request.file, language: request.body.language })
+    : await createScan({ userId: request.auth?.userId, type: request.body.inputType, value: request.body.value, language: request.body.language })
   response.status(201).json({ scan })
 })
 
