@@ -1,2 +1,3 @@
--- AlterTable
-ALTER TABLE `user` MODIFY `username` VARCHAR(191) NULL;
+-- This migration originally attempted to modify `username` before that column
+-- was introduced. Username is created with the correct VARCHAR(191) type in
+-- 20260914170000_add_user_username, so no database change belongs here.

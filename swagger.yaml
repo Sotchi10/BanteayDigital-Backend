@@ -18,6 +18,8 @@ tags:
   - name: Admin Detection Rules
   - name: Community Posts
   - name: Community Comments
+  - name: Community Safety
+  - name: Admin Community Safety
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -126,6 +128,43 @@ components:
       required: [channel]
       properties:
         channel: { type: string, enum: [NATIVE, TELEGRAM, COPY_LINK] }
+    SafetyKnowledgeInput:
+      type: object
+      required: [title, slug, category, shortDescription, content, warningSigns, preventionTips, indicators]
+      properties:
+        title: { type: string, minLength: 3, maxLength: 255, example: Recognize phishing links }
+        slug: { type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', example: recognize-phishing-links }
+        category: { type: string, maxLength: 100, example: Phishing }
+        shortDescription: { type: string, minLength: 10, maxLength: 500 }
+        content: { type: string, minLength: 10, maxLength: 50000 }
+        warningSigns: { type: array, items: { type: string }, minItems: 1 }
+        preventionTips: { type: array, items: { type: string }, minItems: 1 }
+        indicators: { type: array, items: { type: string }, minItems: 1, description: Retained for future scan recommendations. }
+        relatedTopicIds: { type: array, items: { type: string }, maxItems: 20 }
+        imageUrl: { type: string, format: uri, nullable: true }
+        icon: { type: string, nullable: true, example: shield }
+        isPublished: { type: boolean, default: false }
+    SafetyKnowledgePublicationInput:
+      type: object
+      required: [isPublished]
+      properties:
+        isPublished: { type: boolean }
+    SafetyKnowledgeUpdateInput:
+      type: object
+      description: Supply one or more editable SafetyKnowledgeInput properties. Omitted properties remain unchanged.
+      properties:
+        title: { type: string, minLength: 3, maxLength: 255 }
+        slug: { type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }
+        category: { type: string, maxLength: 100 }
+        shortDescription: { type: string, minLength: 10, maxLength: 500 }
+        content: { type: string, minLength: 10, maxLength: 50000 }
+        warningSigns: { type: array, items: { type: string }, minItems: 1 }
+        preventionTips: { type: array, items: { type: string }, minItems: 1 }
+        indicators: { type: array, items: { type: string }, minItems: 1 }
+        relatedTopicIds: { type: array, items: { type: string }, maxItems: 20 }
+        imageUrl: { type: string, format: uri, nullable: true }
+        icon: { type: string, nullable: true }
+        isPublished: { type: boolean }
     Error:
       type: object
       required: [message]
@@ -428,3 +467,65 @@ paths:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/CommentModerationInput' } } }
       responses: { '200': { description: Moderation state updated. }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/safety-knowledge:
+    get:
+      tags: [Community Safety]
+      summary: List published Community Safety knowledge
+      description: Only published knowledge and published related topics are returned.
+      parameters:
+        - { name: category, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses: { '200': { description: Published knowledge found. } }
+  /api/v1/safety-knowledge/{slug}:
+    get:
+      tags: [Community Safety]
+      summary: Get one published Community Safety knowledge item
+      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: Published knowledge found. }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/admin/safety-knowledge:
+    get:
+      tags: [Admin Community Safety]
+      security: [{ bearerAuth: [] }]
+      summary: List all Community Safety knowledge, including drafts
+      parameters:
+        - { name: category, in: query, schema: { type: string } }
+        - { name: q, in: query, schema: { type: string } }
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses: { '200': { description: Knowledge found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [Admin Community Safety]
+      security: [{ bearerAuth: [] }]
+      summary: Create Community Safety knowledge
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SafetyKnowledgeInput' } } } }
+      responses: { '201': { description: Knowledge created. }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/admin/safety-knowledge/{id}:
+    get:
+      tags: [Admin Community Safety]
+      security: [{ bearerAuth: [] }]
+      summary: Get a Community Safety knowledge item, including drafts
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Knowledge found. }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Admin Community Safety]
+      security: [{ bearerAuth: [] }]
+      summary: Update Community Safety knowledge and related topics
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SafetyKnowledgeUpdateInput' } } } }
+      responses: { '200': { description: Knowledge updated. }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
+    delete:
+      tags: [Admin Community Safety]
+      security: [{ bearerAuth: [] }]
+      summary: Delete Community Safety knowledge and its relations
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '204': { description: Knowledge deleted. }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/admin/safety-knowledge/{id}/publish:
+    patch:
+      tags: [Admin Community Safety]
+      security: [{ bearerAuth: [] }]
+      summary: Publish or unpublish Community Safety knowledge
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SafetyKnowledgePublicationInput' } } } }
+      responses: { '200': { description: Publication state updated. }, '404': { $ref: '#/components/responses/NotFound' } }

@@ -52,22 +52,6 @@ enum ScanAssessment {
   UNABLE_TO_ASSESS
 }
 
-enum user_role {
-  USER
-  ADMIN
-}
-
-enum user_status {
-  ACTIVE
-  SUSPENDED
-  BANNED
-}
-
-enum scan_reportStatus {
-  NOT_REPORTED
-  REPORTED
-}
-
 enum DetectionRuleSeverity {
   CAUTION
   SUSPICIOUS
@@ -121,12 +105,8 @@ model User {
   @@index([status])
 }
 
-// A Scan is a private, automated assessment. It becomes report evidence only
-// when its owner explicitly requests a moderator review.
 model Scan {
   id                      String           @id @default(cuid())
-  // Nullable only for pre-ownership scans retained during migration. New scans
-  // are always created for the authenticated user by the API.
   userId                  String?
   inputType               ScanInputType
   imageStoragePath        String?          @db.VarChar(512)
@@ -156,8 +136,6 @@ model Scan {
   @@index([reportStatus, createdAt])
 }
 
-// Administrator-managed, human-readable detection knowledge. Terms are plain
-// phrases, never executable regular expressions, so changes stay safe to review.
 model DetectionRule {
   id             String                @id @default(cuid())
   code           String                @unique @db.VarChar(100)
@@ -177,11 +155,7 @@ model DetectionRule {
   @@index([enabled, severity])
 }
 
-// ScamCase is the authoritative catalogue imported from data/scam_datas.csv.
-// A future embedding worker creates vector documents directly from this record,
-// using stable case/chunk IDs in the vector store.
 model ScamCase {
-  // The CSV's stable identifier is retained so imports can be idempotent.
   id          Int       @id @default(autoincrement())
   title       String    @db.VarChar(255)
   scamType    String    @db.VarChar(100)
@@ -217,8 +191,6 @@ model ScanScamCaseMatch {
 model ScamReport {
   id           String       @id @default(cuid())
   userId       String
-  // Nullable only to preserve reports created by the retired direct-submission flow.
-  // All reports created by current routes reference an owned scan.
   scanId       String?      @unique
   title        String?      @db.VarChar(255)
   reason       String?      @db.VarChar(100)
@@ -261,6 +233,40 @@ model CommunityPost {
   comments Comment[]
 
   @@index([publishedAt])
+}
+
+model SafetyKnowledge {
+  id               String   @id @default(cuid())
+  title            String   @db.VarChar(255)
+  slug             String   @unique @db.VarChar(255)
+  category         String   @db.VarChar(100)
+  shortDescription String   @db.VarChar(500)
+  content          String   @db.LongText
+  warningSigns     Json
+  preventionTips   Json
+  indicators       Json
+  imageUrl         String?  @db.VarChar(512)
+  icon             String?  @db.VarChar(100)
+  isPublished      Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  relatedFrom SafetyKnowledgeRelation[] @relation("SafetyKnowledgeSource")
+  relatedTo   SafetyKnowledgeRelation[] @relation("SafetyKnowledgeTarget")
+
+  @@index([isPublished, category, updatedAt])
+}
+
+model SafetyKnowledgeRelation {
+  sourceId  String
+  targetId  String
+  createdAt DateTime @default(now())
+
+  source SafetyKnowledge @relation("SafetyKnowledgeSource", fields: [sourceId], references: [id], onDelete: Cascade)
+  target SafetyKnowledge @relation("SafetyKnowledgeTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@id([sourceId, targetId])
+  @@index([targetId])
 }
 
 model PostLike {
