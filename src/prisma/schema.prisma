@@ -8,182 +8,42 @@ datasource db {
   provider = "mysql"
 }
 
-model communitypost {
-  id          String     @id
-  reportId    String     @unique(map: "CommunityPost_reportId_key")
-  authorId    String
-  title       String     @db.VarChar(255)
-  summary     String     @db.VarChar(500)
-  content     String     @db.LongText
-  publishedAt DateTime   @default(now())
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime
-  user        user       @relation(fields: [authorId], references: [id], map: "CommunityPost_authorId_fkey")
-  scamreport  scamreport @relation(fields: [reportId], references: [id], onDelete: Cascade, map: "CommunityPost_reportId_fkey")
-
-  @@index([authorId], map: "CommunityPost_authorId_fkey")
-  @@index([publishedAt], map: "CommunityPost_publishedAt_idx")
+enum UserRole {
+  USER
+  ADMIN
 }
 
-model detectionrule {
-  id             String                 @id
-  code           String                 @unique(map: "DetectionRule_code_key") @db.VarChar(100)
-  title          String                 @db.VarChar(160)
-  description    String                 @db.Text
-  severity       detectionrule_severity
-  weight         Int
-  matchTerms     Json
-  languages      Json
-  recommendation String?                @db.Text
-  source         String                 @db.VarChar(255)
-  verified       Boolean                @default(false)
-  enabled        Boolean                @default(true)
-  createdAt      DateTime               @default(now())
-  updatedAt      DateTime
-
-  @@index([enabled, severity], map: "DetectionRule_enabled_severity_idx")
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
 }
 
-model scamcase {
-  id                Int                 @id @default(autoincrement())
-  title             String              @db.VarChar(255)
-  scamType          String              @db.VarChar(100)
-  description       String              @db.Text
-  sampleText        String              @db.LongText
-  indicators        Json
-  riskLevel         scamcase_riskLevel
-  source            String              @db.VarChar(255)
-  verified          Boolean             @default(false)
-  createdAt         DateTime            @default(now())
-  updatedAt         DateTime
-  scanscamcasematch scanscamcasematch[]
-
-  @@index([scamType, riskLevel], map: "ScamCase_scamType_riskLevel_idx")
-  @@index([verified], map: "ScamCase_verified_idx")
-}
-
-model scamreport {
-  id                                 String            @id
-  status                             scamreport_status @default(PENDING)
-  reviewNote                         String?           @db.Text
-  reviewedById                       String?
-  reviewedAt                         DateTime?
-  createdAt                          DateTime          @default(now())
-  updatedAt                          DateTime
-  userId                             String
-  scanId                             String?           @unique(map: "ScamReport_scanId_key")
-  title                              String?           @db.VarChar(255)
-  content                            String            @db.LongText
-  sourceUrl                          String?           @db.VarChar(512)
-  communitypost                      communitypost?
-  user_scamreport_reviewedByIdTouser user?             @relation("scamreport_reviewedByIdTouser", fields: [reviewedById], references: [id], map: "ScamReport_reviewedById_fkey")
-  scan                               scan?             @relation(fields: [scanId], references: [id], map: "ScamReport_scanId_fkey")
-  user_scamreport_userIdTouser       user              @relation("scamreport_userIdTouser", fields: [userId], references: [id], onDelete: Cascade, map: "ScamReport_userId_fkey")
-
-  @@index([reviewedById], map: "ScamReport_reviewedById_idx")
-  @@index([status, createdAt], map: "ScamReport_status_createdAt_idx")
-  @@index([userId, createdAt], map: "ScamReport_userId_createdAt_idx")
-}
-
-model scan {
-  id                      String                        @id
-  inputType               scan_inputType
-  imageStoragePath        String?                       @db.VarChar(512)
-  imageMimeType           String?                       @db.VarChar(100)
-  imageSize               Int?
-  rawInput                String                        @db.LongText
-  normalizedInput         String                        @db.LongText
-  findings                Json
-  assessment              scan_assessment
-  score                   Int
-  createdAt               DateTime                      @default(now())
-  userId                  String?
-  analysisSummary         String?                       @db.Text
-  deterministicAssessment scan_deterministicAssessment?
-  retrievalEvidence       Json?
-  analysisReasons         Json?
-  recommendedActions      Json?
-  analysisSource          String?                       @db.VarChar(50)
-  citedCaseIds            Json?
-  reportStatus            scan_reportStatus             @default(NOT_REPORTED)
-  scamreport              scamreport?
-  user                    user?                         @relation(fields: [userId], references: [id], onDelete: Cascade, map: "Scan_userId_fkey")
-  scanscamcasematch       scanscamcasematch[]
-
-  @@index([assessment, createdAt], map: "Scan_assessment_createdAt_idx")
-  @@index([reportStatus, createdAt], map: "Scan_reportStatus_createdAt_idx")
-  @@index([userId, createdAt], map: "Scan_userId_createdAt_idx")
-}
-
-model scanscamcasematch {
-  scanId      String
-  scamCaseId  Int
-  similarity  Int
-  matchReason String   @db.VarChar(500)
-  createdAt   DateTime @default(now())
-  scamcase    scamcase @relation(fields: [scamCaseId], references: [id], onDelete: Cascade, map: "ScanScamCaseMatch_scamCaseId_fkey")
-  scan        scan     @relation(fields: [scanId], references: [id], onDelete: Cascade, map: "ScanScamCaseMatch_scanId_fkey")
-
-  @@id([scanId, scamCaseId])
-  @@index([scamCaseId], map: "ScanScamCaseMatch_scamCaseId_idx")
-}
-
-model user {
-  id                                       String          @id
-  phone_num                                String?         @unique(map: "User_phone_num_key")
-  email                                    String?         @unique(map: "User_email_key")
-  name                                     String?
-  age                                      Int?
-  createdAt                                DateTime        @default(now())
-  updatedAt                                DateTime
-  passwordHash                             String
-  tokenVersion                             Int             @default(0)
-  avatarUrl                                String?         @db.VarChar(512)
-  role                                     user_role       @default(USER)
-  status                                   user_status     @default(ACTIVE)
-  communitypost                            communitypost[]
-  scamreport_scamreport_reviewedByIdTouser scamreport[]    @relation("scamreport_reviewedByIdTouser")
-  scamreport_scamreport_userIdTouser       scamreport[]    @relation("scamreport_userIdTouser")
-  scan                                     scan[]
-
-  @@index([role], map: "User_role_idx")
-  @@index([status], map: "User_status_idx")
-}
-
-enum scan_inputType {
-  TEXT
-  URL
-  IMAGE
-}
-
-enum scamreport_status {
-  PENDING
-  APPROVED
-  REJECTED
-}
-
-enum detectionrule_severity {
-  CAUTION
-  SUSPICIOUS
-}
-
-enum scan_assessment {
-  NO_STRONG_WARNING_SIGNS
-  INSUFFICIENT_EVIDENCE
-  CAUTION
-  SUSPICIOUS
-  STRONG_SCAM_INDICATORS
-  UNABLE_TO_ASSESS
-}
-
-enum scamcase_riskLevel {
+enum RiskLevel {
   LOW
   MEDIUM
   HIGH
   CRITICAL
 }
 
-enum scan_deterministicAssessment {
+enum ReportStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum ScanReportStatus {
+  NOT_REPORTED
+  REPORTED
+}
+
+enum ScanInputType {
+  TEXT
+  URL
+  IMAGE
+}
+
+enum ScanAssessment {
   NO_STRONG_WARNING_SIGNS
   INSUFFICIENT_EVIDENCE
   CAUTION
@@ -192,22 +52,11 @@ enum scan_deterministicAssessment {
   UNABLE_TO_ASSESS
 }
 
-<<<<<<< HEAD
-enum user_role {
-  USER
-  ADMIN
+enum DetectionRuleSeverity {
+  CAUTION
+  SUSPICIOUS
 }
 
-enum user_status {
-  ACTIVE
-  SUSPENDED
-  BANNED
-}
-
-enum scan_reportStatus {
-  NOT_REPORTED
-  REPORTED
-=======
 enum CommentStatus {
   ACTIVE
   DELETED
@@ -263,6 +112,9 @@ model Scan {
   // are always created for the authenticated user by the API.
   userId                  String?
   inputType               ScanInputType
+  imageStoragePath        String?          @db.VarChar(512)
+  imageMimeType           String?          @db.VarChar(100)
+  imageSize               Int?
   rawInput                String           @db.LongText
   normalizedInput         String           @db.LongText
   findings                Json
@@ -352,6 +204,9 @@ model ScamReport {
   // All reports created by current routes reference an owned scan.
   scanId       String?      @unique
   title        String?      @db.VarChar(255)
+  reason       String?      @db.VarChar(100)
+  details      String?      @db.Text
+  evidence     String?      @db.Text
   content      String       @db.LongText
   sourceUrl    String?      @db.VarChar(512)
   status       ReportStatus @default(PENDING)
@@ -389,7 +244,6 @@ model CommunityPost {
   comments Comment[]
 
   @@index([publishedAt])
->>>>>>> 7cfdaa9084805e2ad0b8a83216277ddb6ea51edd
 }
 
 model PostLike {

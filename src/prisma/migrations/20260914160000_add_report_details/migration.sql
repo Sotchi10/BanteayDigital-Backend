@@ -1,0 +1,4 @@
+ALTER TABLE `ScamReport`
+  ADD COLUMN `reason` VARCHAR(100) NULL,
+  ADD COLUMN `details` TEXT NULL,
+  ADD COLUMN `evidence` TEXT NULL;

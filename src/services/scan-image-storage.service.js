@@ -3,6 +3,13 @@ import env from '../config/env.js'
 import ApiError from '../utils/api-error.js'
 
 let storageClient
+const PUBLIC_POST_IMAGE_TTL_SECONDS = 5 * 60
+
+const isSafeScanImagePath = (value) => (
+  typeof value === 'string'
+  && /^scans\/[^/]+\/[^/]+\/[^/]+$/.test(value)
+  && !value.includes('..')
+)
 
 const getStorageClient = () => {
   if (!env.supabaseUrl || !env.supabaseSecretKey || !env.supabaseStorageBucket) {
@@ -33,4 +40,20 @@ const removeScanImage = async (path) => {
   }
 }
 
-export { removeScanImage, uploadScanImage }
+// Images may be stored in a private bucket. Generate a short-lived URL for an
+// approved community post instead of assuming the bucket is publicly readable.
+const getPublicScanImageUrl = async (path) => {
+  if (!isSafeScanImagePath(path)) return null
+  try {
+    const { data, error } = await getStorageClient().storage
+      .from(env.supabaseStorageBucket)
+      .createSignedUrl(path, PUBLIC_POST_IMAGE_TTL_SECONDS)
+    return error ? null : data?.signedUrl || null
+  } catch {
+    // Storage is optional for scans. A missing image must not make the public
+    // feed unavailable; the post text can still be shown.
+    return null
+  }
+}
+
+export { getPublicScanImageUrl, removeScanImage, uploadScanImage }

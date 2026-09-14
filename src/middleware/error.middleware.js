@@ -1,3 +1,5 @@
+import ApiError from '../utils/api-error.js'
+
 const notFoundHandler = (request, _response, next) => {
   const error = new Error(`Route ${request.method} ${request.originalUrl} was not found`)
   error.statusCode = 404
@@ -7,10 +9,10 @@ const notFoundHandler = (request, _response, next) => {
 const errorHandler = (error, _request, response, _next) => {
   const statusCode = error.statusCode || error.status || 500
   const body = {
-    message: statusCode >= 500 ? 'Internal server error' : error.message || 'Request failed',
+    message: error instanceof ApiError ? error.message : statusCode >= 500 ? 'Internal server error' : error.message || 'Request failed',
   }
 
-  if (error.details && statusCode < 500) {
+  if (error.details && (error instanceof ApiError || statusCode < 500)) {
     body.details = error.details
   }
 
