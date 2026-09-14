@@ -26,19 +26,18 @@ const createImageScan = async ({ userId, image }) => {
   const path = `scans/${userId}/${scanId}/image.${imageExtensions[image.mimetype]}`
   let storagePath
   try {
-    const extraction = await ocrExtractor(image)
-    const text = extraction.text?.trim() || ''
-    if (!text) {
-      throw new ApiError(422, 'No readable text was found in the image', { code: 'NO_READABLE_TEXT' })
-    }
-
-    // Retaining the original image is useful, but it must not prevent a user
-    // from receiving a safety analysis when the optional storage provider is
-    // temporarily unavailable.
+    // Upload first so an unreadable image can be reliably cleaned up before
+    // returning the OCR validation error.
     try {
       storagePath = await imageUploader({ path, image })
     } catch {
       storagePath = undefined
+    }
+
+    const extraction = await ocrExtractor(image)
+    const text = extraction.text?.trim() || ''
+    if (!text) {
+      throw new ApiError(422, 'No readable text was found in the image', { code: 'NO_READABLE_TEXT' })
     }
 
     // OCR turns the image into text; all detection, retrieval, and explanation

@@ -3,7 +3,7 @@ import test from 'node:test'
 import { createRateLimiter } from '../src/middleware/rate-limit.middleware.js'
 
 test('rate limiter returns 429 and Retry-After after the configured maximum', () => {
-  const limiter = createRateLimiter({ windowMs: 60_000, max: 2 })
+  const limiter = createRateLimiter({ windowMs: 60_000, max: 2, bypass: false })
   const request = { ip: '127.0.0.1' }
   let nextCalls = 0
   let statusCode

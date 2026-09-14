@@ -1,10 +1,10 @@
 import env from '../config/env.js'
 
-const createRateLimiter = ({ windowMs, max, message = 'Too many requests. Please try again later.' }) => {
+const createRateLimiter = ({ windowMs, max, message = 'Too many requests. Please try again later.', bypass = env.devBypassRateLimits }) => {
   const requests = new Map()
 
   return (request, response, next) => {
-    if (env.devBypassRateLimits) return next()
+    if (bypass) return next()
 
     const now = Date.now()
     const key = request.ip || request.socket.remoteAddress || 'unknown'
