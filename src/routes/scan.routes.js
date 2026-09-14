@@ -2,12 +2,13 @@ import { Router } from 'express'
 import { create, getById, list } from '../controllers/scan.controller.js'
 import { uploadScanImageIfMultipart } from '../middleware/scan-image-upload.middleware.js'
 import { createFromScan } from '../controllers/report.controller.js'
-import requireAuth from '../middleware/auth.middleware.js'
+import requireAuth, { optionalAuth } from '../middleware/auth.middleware.js'
 import validate from '../middleware/validate.middleware.js'
 import { imageScanSchema, listScansQuerySchema, scanIdParamSchema, scanSchema } from '../validators/scan.validator.js'
 import { reportFromScanSchema } from '../validators/report.validator.js'
 import env from '../config/env.js'
 import { createRateLimiter } from '../middleware/rate-limit.middleware.js'
+import { blockGuestImageUploads, enforceReportQuota, enforceScanQuota } from '../middleware/daily-quota.middleware.js'
 
 const router = Router()
 const validateScanRequest = (request, response, next) => validate(request.is('multipart/form-data') ? imageScanSchema : scanSchema)(request, response, next)
@@ -32,10 +33,9 @@ const limitMultipartUploads = (request, response, next) => (
     : next()
 )
 
-router.use(requireAuth)
-router.post('/', limitMultipartUploads, aiRateLimiter, uploadScanImageIfMultipart, validateScanRequest, create)
-router.get('/', validate(listScansQuerySchema, 'query'), list)
-router.get('/:id', validate(scanIdParamSchema, 'params'), getById)
-router.post('/:id/report', reportRateLimiter, validate({ params: scanIdParamSchema, body: reportFromScanSchema }), createFromScan)
+router.post('/', optionalAuth, blockGuestImageUploads, limitMultipartUploads, aiRateLimiter, uploadScanImageIfMultipart, validateScanRequest, enforceScanQuota, create)
+router.get('/', requireAuth, validate(listScansQuerySchema, 'query'), list)
+router.get('/:id', requireAuth, validate(scanIdParamSchema, 'params'), getById)
+router.post('/:id/report', requireAuth, reportRateLimiter, validate({ params: scanIdParamSchema, body: reportFromScanSchema }), enforceReportQuota, createFromScan)
 
 export default router

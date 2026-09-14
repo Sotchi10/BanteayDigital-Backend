@@ -2,9 +2,12 @@ import 'dotenv/config'
 
 const jwtSecret = process.env.JWT_SECRET
 const nodeEnv = process.env.NODE_ENV || 'development'
+const devBypassRateLimits = nodeEnv === 'development' && process.env.DEV_BYPASS_RATE_LIMITS === 'true'
 const cookieSameSite = process.env.COOKIE_SAME_SITE || (nodeEnv === 'production' ? 'none' : 'lax')
 const aiMatchMinimumScore = Number(process.env.AI_MATCH_MIN_SCORE || 0.65)
 const aiMatchConfidenceThreshold = Number(process.env.AI_MATCH_CONFIDENCE_THRESHOLD || 0.75)
+const dailyQuotaTimeZone = process.env.DAILY_QUOTA_TIME_ZONE || 'Asia/Bangkok'
+const guestQuotaHashSecret = process.env.GUEST_QUOTA_HASH_SECRET || (nodeEnv === 'production' ? null : jwtSecret || 'development-only-guest-quota-secret')
 
 const positiveInteger = (name, fallback) => {
   const value = Number(process.env[name] || fallback)
@@ -35,11 +38,22 @@ if (!Number.isFinite(aiMatchConfidenceThreshold) || aiMatchConfidenceThreshold <
   throw new Error('AI_MATCH_CONFIDENCE_THRESHOLD must be between AI_MATCH_MIN_SCORE and 1')
 }
 
+try {
+  Intl.DateTimeFormat('en-US', { timeZone: dailyQuotaTimeZone })
+} catch {
+  throw new Error('DAILY_QUOTA_TIME_ZONE must be a valid IANA time zone')
+}
+
+if (!guestQuotaHashSecret) {
+  throw new Error('GUEST_QUOTA_HASH_SECRET must be set in production')
+}
+
 const env = {
   port: Number(process.env.PORT) || 3000,
   jwtSecret: jwtSecret || 'development-only-change-this-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
   nodeEnv,
+  devBypassRateLimits,
   cookieSameSite,
   aiServiceUrl: process.env.AI_SERVICE_URL || null,
   aiServiceApiKey: process.env.AI_SERVICE_API_KEY || null,
@@ -48,6 +62,8 @@ const env = {
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || null,
   aiMatchMinimumScore,
   aiMatchConfidenceThreshold,
+  dailyQuotaTimeZone,
+  guestQuotaHashSecret,
   authRateLimitWindowMs,
   authRateLimitMax: positiveInteger('AUTH_RATE_LIMIT_MAX', 10),
   aiRateLimitWindowMs,

@@ -100,9 +100,30 @@ model User {
   postShares      PostShare[]
   comments        Comment[]       @relation("CommentAuthor")
   commentReports  CommentReport[] @relation("CommentReporter")
+  dailyUsage      UserDailyUsage[]
 
   @@index([role])
   @@index([status])
+}
+
+model UserDailyUsage {
+  userId           String
+  quotaDate        String   @db.Char(10)
+  scanCount        Int      @default(0)
+  imageUploadCount Int      @default(0)
+  reportCount      Int      @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, quotaDate])
+}
+
+model GuestDailyUsage {
+  guestIdentifier String @db.Char(64)
+  quotaDate       String @db.Char(10)
+  scanCount       Int    @default(0)
+
+  @@id([guestIdentifier, quotaDate])
 }
 
 model Scan {

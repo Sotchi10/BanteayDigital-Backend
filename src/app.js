@@ -11,6 +11,7 @@ import adminRoutes from './routes/admin.routes.js'
 import scanRoutes from './routes/scan.routes.js'
 import safetyKnowledgeRoutes from './routes/safety-knowledge.routes.js'
 import adminSafetyKnowledgeRoutes from './routes/admin-safety-knowledge.routes.js'
+import publicProfileRoutes from './routes/public-profile.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 import asyncHandler from './utils/async-handler.js'
 import { getAiServiceHealth } from './services/ai-service.client.js'
@@ -203,6 +204,7 @@ function registerApiRoutes(app) {
   app.use('/api/v1/admin', adminRoutes)
   app.use('/api/v1/admin/safety-knowledge', adminSafetyKnowledgeRoutes)
   app.use('/api/v1/community', communityRoutes)
+  app.use('/api/v1/users', publicProfileRoutes)
 }
 
 function registerErrorHandlers(app) {
