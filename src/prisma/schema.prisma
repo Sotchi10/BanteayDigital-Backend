@@ -243,6 +243,7 @@ model CommunityPost {
   title       String   @db.VarChar(255)
   summary     String   @db.VarChar(500)
   content     String   @db.LongText
+  isPublished Boolean  @default(true)
   publishedAt DateTime @default(now())
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -253,7 +254,7 @@ model CommunityPost {
   shares   PostShare[]
   comments Comment[]
 
-  @@index([publishedAt])
+  @@index([isPublished, publishedAt])
 }
 
 model SafetyKnowledge {

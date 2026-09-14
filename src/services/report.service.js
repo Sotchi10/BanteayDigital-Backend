@@ -14,7 +14,7 @@ const reportInclude = {
       scamCaseMatches: { select: { similarity: true, matchReason: true, scamCase: { select: { id: true, title: true, scamType: true, riskLevel: true } } } },
     },
   },
-  communityPost: { select: { id: true, title: true, publishedAt: true } },
+  communityPost: { select: { id: true, title: true, isPublished: true, publishedAt: true, updatedAt: true } },
 }
 
 const adminReportInclude = {
@@ -142,8 +142,74 @@ const publishReport = async ({ id, adminId, title, summary, content }) => {
   }
 }
 
+const setReportPublication = async ({ id, isPublished }) => {
+  const report = await reportRepository.scamReport.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      status: true,
+      communityPost: { select: { id: true, isPublished: true } },
+    },
+  })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  if (report.status !== APPROVED_REPORT_STATUS) throw new ApiError(409, 'Only approved reports can change publication visibility')
+  if (!report.communityPost) throw new ApiError(409, 'This report has not been published yet')
+
+  if (report.communityPost.isPublished !== isPublished) {
+    await reportRepository.$transaction(async (tx) => {
+      await tx.communityPost.update({
+        where: { id: report.communityPost.id },
+        data: {
+          isPublished,
+          ...(isPublished && { publishedAt: new Date() }),
+        },
+      })
+
+      if (!isPublished) {
+        await tx.postLike.deleteMany({ where: { postId: report.communityPost.id } })
+        await tx.comment.deleteMany({ where: { postId: report.communityPost.id } })
+      }
+    })
+  }
+
+  return getAdminReport({ id })
+}
+
+const deleteManagedReport = async ({ id }) => {
+  const report = await reportRepository.scamReport.findUnique({
+    where: { id },
+    select: { id: true, status: true, scanId: true },
+  })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  if (report.status !== APPROVED_REPORT_STATUS) throw new ApiError(409, 'Only approved reports can be deleted from report management')
+
+  await reportRepository.$transaction(async (tx) => {
+    if (report.scanId) {
+      await tx.scan.updateMany({
+        where: { id: report.scanId },
+        data: { reportStatus: 'NOT_REPORTED' },
+      })
+    }
+    await tx.scamReport.delete({ where: { id } })
+  })
+
+  return { id }
+}
+
 const setReportRepositoryForTests = (repository) => {
   reportRepository = repository || prisma
 }
 
-export { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport, setReportRepositoryForTests, updateManagedReport }
+export {
+  createReportFromScan,
+  deleteManagedReport,
+  getAdminReport,
+  getUserReport,
+  listAdminReports,
+  listUserReports,
+  publishReport,
+  reviewReport,
+  setReportPublication,
+  setReportRepositoryForTests,
+  updateManagedReport,
+}

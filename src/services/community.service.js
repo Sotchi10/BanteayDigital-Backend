@@ -5,8 +5,8 @@ import { getPublicScanImageUrl } from './scan-image-storage.service.js'
 let communityRepository = prisma
 let imageUrlResolver = getPublicScanImageUrl
 
-const publicPostWhere = { report: { is: { status: 'APPROVED' } } }
-const publicAuthorSelect = { id: true, name: true, username: true, avatarUrl: true }
+const publicPostWhere = { isPublished: true, report: { is: { status: 'APPROVED' } } }
+const publicAuthorSelect = { id: true, username: true, name: true, avatarUrl: true }
 
 const postInclude = (userId) => ({
   author: { select: publicAuthorSelect },
@@ -33,9 +33,9 @@ const postInclude = (userId) => ({
 const serializePost = async (post) => {
   const { _count, likes, report, author: moderator, ...publicPost } = post
   const imageUrl = await imageUrlResolver(report?.scan?.imageStoragePath)
-  const author = report?.user?.username
+  const author = report?.user?.username || report?.user?.name
     ? report.user
-    : moderator?.username
+    : moderator?.username || moderator?.name
       ? moderator
       : { id: null, username: 'BanteayDigital', name: 'BanteayDigital Safety Team', avatarUrl: null }
   return {

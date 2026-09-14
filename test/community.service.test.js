@@ -15,14 +15,15 @@ import {
 const publicPost = { id: 'post-1' }
 
 test('post list exposes counts and the current user like state', async (t) => {
+  let listQuery
   setCommunityImageUrlResolverForTests((path) => path ? `https://cdn.example/${path}` : null)
   setCommunityRepositoryForTests({
     communityPost: {
-      findMany: async () => [{
+      findMany: async (query) => { listQuery = query; return [{
         id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
         report: { scan: { imageStoragePath: 'scans/user-1/scan.png' }, user: { id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null } },
         _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }],
-      }],
+      }] },
       count: async () => 1,
     },
   })
@@ -34,28 +35,36 @@ test('post list exposes counts and the current user like state', async (t) => {
   const result = await listPosts({ query: { page: 1, limit: 20 }, userId: 'user-1' })
   assert.deepEqual(result.posts[0].interaction, { likeCount: 3, shareCount: 4, commentCount: 2, likedByMe: true })
   assert.equal(result.posts[0].imageUrl, 'https://cdn.example/scans/user-1/scan.png')
+  assert.deepEqual(result.posts[0].author, {
+    id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null,
+  })
   assert.equal('likes' in result.posts[0], false)
   assert.equal('report' in result.posts[0], false)
-  assert.equal(result.posts[0].author.username, 'user-a')
+  assert.equal(listQuery.where.isPublished, true)
+  assert.equal(listQuery.include.report.select.user.select.username, true)
 })
 
-test('community posts display their reporters and only fall back when a reporter has no username', async (t) => {
-  const moderator = { id: 'admin-1', username: 'moderator', name: 'Moderator', avatarUrl: null }
+test('post ownership uses the reporter display name when no username is set', async (t) => {
+  setCommunityImageUrlResolverForTests(() => null)
   setCommunityRepositoryForTests({
     communityPost: {
-      findMany: async () => [
-        { id: 'post-a', author: moderator, report: { scan: {}, user: { id: 'user-a', username: 'user-a', name: 'User A', avatarUrl: 'https://cdn.example/a.png' } }, _count: {} },
-        { id: 'post-b', author: moderator, report: { scan: {}, user: { id: 'user-b', username: 'user-b', name: 'User B', avatarUrl: null } }, _count: {} },
-        { id: 'post-c', author: moderator, report: { scan: {}, user: { id: 'legacy-user', username: null, name: 'Legacy User', avatarUrl: null } }, _count: {} },
-      ],
-      count: async () => 3,
+      findMany: async () => [{
+        id: 'post-1', title: 'Warning', author: { id: 'admin-1', username: 'moderator', name: 'Moderator', avatarUrl: null },
+        report: { scan: null, user: { id: 'reporter-1', username: null, name: 'User A', avatarUrl: 'https://cdn.example/user-a.png' } },
+        _count: { likes: 0, shares: 0, comments: 0 }, likes: [],
+      }],
+      count: async () => 1,
     },
   })
-  t.after(() => setCommunityRepositoryForTests())
+  t.after(() => {
+    setCommunityImageUrlResolverForTests()
+    setCommunityRepositoryForTests()
+  })
 
   const result = await listPosts({ query: { page: 1, limit: 20 } })
-  assert.deepEqual(result.posts.map((post) => post.author.username), ['user-a', 'user-b', 'moderator'])
-  assert.equal(result.posts[0].author.avatarUrl, 'https://cdn.example/a.png')
+  assert.deepEqual(result.posts[0].author, {
+    id: 'reporter-1', username: null, name: 'User A', avatarUrl: 'https://cdn.example/user-a.png',
+  })
 })
 
 test('a share records its channel and returns the current count', async (t) => {
