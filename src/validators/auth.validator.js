@@ -21,4 +21,10 @@ const loginSchema = z.object({
   password: z.string().min(1).max(72),
 }).refine(hasExactlyOneContact, { message: 'Provide either email or phone number, not both', path: ['email'] })
 
-export { loginSchema, registerSchema }
+const updateProfileSchema = z.object({
+  name: z.string().trim().min(1).max(100).optional(),
+  username: z.string().trim().min(3).max(100).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores').optional(),
+  email: z.string().trim().email().max(255).transform((value) => value.toLowerCase()).optional(),
+}).refine((data) => Object.keys(data).length > 0, { message: 'At least one profile field is required' })
+
+export { loginSchema, registerSchema, updateProfileSchema }

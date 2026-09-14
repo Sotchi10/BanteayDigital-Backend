@@ -1,4 +1,4 @@
-import { getUserById, loginUser, registerUser, revokeUserTokens } from '../services/auth.service.js'
+import { getUserById, loginUser, registerUser, revokeUserTokens, updateUserProfile } from '../services/auth.service.js'
 import asyncHandler from '../utils/async-handler.js'
 import { publicUser, signToken, tokenCookieOptions } from '../utils/auth.js'
 
@@ -32,4 +32,9 @@ const logout = asyncHandler(async (request, response) => {
     .json({ message: 'Logged out successfully' })
 })
 
-export { login, logout, me, register }
+const updateProfile = asyncHandler(async (request, response) => {
+  const user = await updateUserProfile(request.auth.userId, request.body)
+  response.status(200).json({ user: publicUser(user) })
+})
+
+export { login, logout, me, register, updateProfile }

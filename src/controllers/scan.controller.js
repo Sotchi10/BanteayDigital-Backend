@@ -1,5 +1,5 @@
 import asyncHandler from '../utils/async-handler.js'
-import { createScan, getAdminScan, getOwnedScan } from '../services/scan.service.js'
+import { createScan, getAdminScan, getOwnedScan, listOwnedScans } from '../services/scan.service.js'
 import { createImageScan } from '../services/scan-image.service.js'
 
 const create = asyncHandler(async (request, response) => {
@@ -16,9 +16,14 @@ const getById = asyncHandler(async (request, response) => {
   response.json({ scan })
 })
 
+const list = asyncHandler(async (request, response) => {
+  const scans = await listOwnedScans({ userId: request.auth.userId, query: request.query })
+  response.json(scans)
+})
+
 const getForAdmin = asyncHandler(async (request, response) => {
   const scan = await getAdminScan({ id: request.params.id })
   response.json({ scan })
 })
 
-export { create, getById, getForAdmin }
+export { create, getById, getForAdmin, list }

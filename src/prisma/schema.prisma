@@ -66,6 +66,8 @@ enum user_status {
 enum scan_reportStatus {
   NOT_REPORTED
   REPORTED
+}
+
 enum DetectionRuleSeverity {
   CAUTION
   SUSPICIOUS
@@ -97,6 +99,7 @@ model User {
   email        String?    @unique
   passwordHash String
   name         String?
+  username     String?    @unique
   age          Int?
   avatarUrl    String?    @db.VarChar(512)
   role         UserRole   @default(USER)

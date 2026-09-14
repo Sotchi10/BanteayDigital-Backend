@@ -64,4 +64,16 @@ const revokeUserTokens = async (id) => {
   })
 }
 
-export { getUserById, loginUser, registerUser, revokeUserTokens }
+const updateUserProfile = async (id, profile) => {
+  try {
+    return await prisma.user.update({
+      where: { id },
+      data: profile,
+    })
+  } catch (error) {
+    if (error.code === 'P2002') throw new ApiError(409, 'That email address or username is already in use')
+    throw error
+  }
+}
+
+export { getUserById, loginUser, registerUser, revokeUserTokens, updateUserProfile }

@@ -35,4 +35,9 @@ const scanIdParamSchema = z.object({
   id: z.string().trim().min(1, 'Scan ID is required'),
 })
 
-export { imageScanSchema, scanIdParamSchema, scanSchema }
+const listScansQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(20),
+})
+
+export { imageScanSchema, listScansQuerySchema, scanIdParamSchema, scanSchema }

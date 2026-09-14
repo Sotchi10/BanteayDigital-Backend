@@ -152,6 +152,19 @@ const getOwnedScan = async ({ id, userId }) => {
   return serializeScan(scan, scan.retrievalEvidence?.matches || [])
 }
 
+const listOwnedScans = async ({ userId, query }) => {
+  const { page, limit } = query
+  const where = { userId }
+  const [scans, total] = await Promise.all([
+    scanRepository.scan.findMany({ where, select: scanSelect, skip: (page - 1) * limit, take: limit, orderBy: { createdAt: 'desc' } }),
+    scanRepository.scan.count({ where }),
+  ])
+  return {
+    scans: scans.map((scan) => serializeScan(scan, scan.retrievalEvidence?.matches || [])),
+    meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) },
+  }
+}
+
 const getAdminScan = async ({ id }) => {
   const scan = await scanRepository.scan.findUnique({ where: { id }, select: scanSelect })
   if (!scan) throw new ApiError(404, 'Scan not found')
@@ -162,4 +175,4 @@ const setScanRepositoryForTests = (repository) => { scanRepository = repository 
 const setAiRetrieverForTests = (retriever) => { aiRetriever = retriever || retrieveSimilarScamCases }
 const setAiAnalyzerForTests = (analyzer) => { aiAnalyzer = analyzer || analyzeScan }
 
-export { createScan, getAdminScan, getOwnedScan, setAiAnalyzerForTests, setAiRetrieverForTests, setScanRepositoryForTests }
+export { createScan, getAdminScan, getOwnedScan, listOwnedScans, setAiAnalyzerForTests, setAiRetrieverForTests, setScanRepositoryForTests }
