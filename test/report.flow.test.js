@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createReportFromScan, publishReport, reviewReport, setReportRepositoryForTests } from '../src/services/report.service.js'
+import { createReportFromScan, publishReport, reviewReport, setReportRepositoryForTests, updateManagedReport } from '../src/services/report.service.js'
 
 test('a user report is created only from the user\'s own scan', async (t) => {
   const created = []
@@ -70,4 +70,25 @@ test('a duplicate community-post insert is reported as a conflict', async (t) =>
     publishReport({ id: 'report-1', adminId: 'admin-1', title: 'Public warning', summary: 'A sanitized public safety summary.', content: 'Use official channels to verify suspicious messages.' }),
     (error) => error.statusCode === 409,
   )
+})
+
+test('editing a published report updates both the report and community post', async (t) => {
+  const reportUpdates = []
+  const postUpdates = []
+  const report = { id: 'report-1', status: 'APPROVED', communityPost: { id: 'post-1' } }
+  setReportRepositoryForTests({
+    scamReport: {
+      findUnique: async () => report,
+    },
+    $transaction: async (work) => work({
+      scamReport: { update: async (query) => reportUpdates.push(query) },
+      communityPost: { update: async (query) => postUpdates.push(query) },
+    }),
+  })
+  t.after(() => setReportRepositoryForTests())
+
+  await updateManagedReport({ id: 'report-1', title: 'Updated warning', content: 'Updated public safety content.', summary: 'Updated safety summary.' })
+  assert.equal(reportUpdates[0].data.title, 'Updated warning')
+  assert.equal(postUpdates[0].where.id, 'post-1')
+  assert.equal(postUpdates[0].data.summary, 'Updated safety summary.')
 })

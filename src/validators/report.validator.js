@@ -16,5 +16,10 @@ const publishReportSchema = z.object({
   summary: z.string().trim().min(10).max(500),
   content: z.string().trim().min(10).max(50000),
 })
+const updateManagedReportSchema = z.object({
+  title: z.string().trim().min(3).max(255).optional(),
+  content: z.string().trim().min(10).max(50000).optional(),
+  summary: z.string().trim().min(10).max(500).optional(),
+}).refine((value) => Object.keys(value).length > 0, 'At least one report field is required')
 
-export { adminReviewSchema, listAdminReportsQuerySchema, listReportsQuerySchema, publishReportSchema, reportFromScanSchema, reportIdParamSchema }
+export { adminReviewSchema, listAdminReportsQuerySchema, listReportsQuerySchema, publishReportSchema, reportFromScanSchema, reportIdParamSchema, updateManagedReportSchema }

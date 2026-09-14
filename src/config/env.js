@@ -1,11 +1,17 @@
 import 'dotenv/config'
 
 const jwtSecret = process.env.JWT_SECRET
+const nodeEnv = process.env.NODE_ENV || 'development'
+const cookieSameSite = process.env.COOKIE_SAME_SITE || (nodeEnv === 'production' ? 'none' : 'lax')
 const aiMatchMinimumScore = Number(process.env.AI_MATCH_MIN_SCORE || 0.65)
 const aiMatchConfidenceThreshold = Number(process.env.AI_MATCH_CONFIDENCE_THRESHOLD || 0.75)
 
-if (!jwtSecret && process.env.NODE_ENV === 'production') {
+if (!jwtSecret && nodeEnv === 'production') {
   throw new Error('JWT_SECRET must be set in production')
+}
+
+if (!['lax', 'strict', 'none'].includes(cookieSameSite)) {
+  throw new Error('COOKIE_SAME_SITE must be lax, strict, or none')
 }
 
 if (!Number.isFinite(aiMatchMinimumScore) || aiMatchMinimumScore < 0 || aiMatchMinimumScore > 1) {
@@ -20,7 +26,8 @@ const env = {
   port: Number(process.env.PORT) || 3000,
   jwtSecret: jwtSecret || 'development-only-change-this-secret',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
-  nodeEnv: process.env.NODE_ENV || 'development',
+  nodeEnv,
+  cookieSameSite,
   aiServiceUrl: process.env.AI_SERVICE_URL || null,
   aiServiceApiKey: process.env.AI_SERVICE_API_KEY || null,
   supabaseUrl: process.env.SUPABASE_URL || null,

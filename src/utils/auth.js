@@ -3,8 +3,8 @@ import env from '../config/env.js'
 
 const tokenCookieOptions = {
   httpOnly: true,
-  secure: env.nodeEnv === 'production',
-  sameSite: 'lax',
+  secure: env.nodeEnv === 'production' || env.cookieSameSite === 'none',
+  sameSite: env.cookieSameSite,
   maxAge: 7 * 24 * 60 * 60 * 1000,
   path: '/',
 }

@@ -14,12 +14,14 @@ tags:
   - name: Scans
   - name: Reports
   - name: Admin Reports
+  - name: Admin Console
   - name: Admin Detection Rules
   - name: Community Posts
   - name: Community Comments
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    cookieAuth: { type: apiKey, in: cookie, name: token }
   parameters:
     Id: { name: id, in: path, required: true, schema: { type: string, minLength: 1 } }
     Page: { name: page, in: query, schema: { type: integer, minimum: 1, default: 1 } }
@@ -76,6 +78,13 @@ components:
       type: object
       required: [title, summary, content]
       description: Sanitized public content supplied by an administrator; never raw private evidence.
+      properties:
+        title: { type: string, minLength: 3, maxLength: 255 }
+        summary: { type: string, minLength: 10, maxLength: 500 }
+        content: { type: string, minLength: 10, maxLength: 50000 }
+    ManagedReportUpdateInput:
+      type: object
+      description: Editable public-facing fields for an approved report. If already published, its community post is updated too.
       properties:
         title: { type: string, minLength: 3, maxLength: 255 }
         summary: { type: string, minLength: 10, maxLength: 500 }
@@ -246,6 +255,44 @@ paths:
       summary: List reports for moderation
       parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
       responses: { '200': { description: Reports found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/admin/dashboard:
+    get:
+      tags: [Admin Console]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Get dashboard totals and scan/report chart series
+      responses: { '200': { description: Dashboard data found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/admin/users:
+    get:
+      tags: [Admin Console]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: List standard users and their report activity
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { name: search, in: query, schema: { type: string, maxLength: 200 } }
+        - { name: status, in: query, schema: { type: string, enum: [ACTIVE, SUSPENDED, BANNED] } }
+      responses: { '200': { description: Users found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/admin/audit-logs:
+    get:
+      tags: [Admin Console]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: List report review and publication events
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: Audit events found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+  /api/v1/admin/reports/{id}:
+    get:
+      tags: [Admin Reports]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Get any report for moderation
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Report found. }, '404': { $ref: '#/components/responses/NotFound' } }
+    patch:
+      tags: [Admin Reports]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Edit approved report content
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedReportUpdateInput' } } } }
+      responses: { '200': { description: Report updated. }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/admin/detection-rules:
     get:
       tags: [Admin Detection Rules]

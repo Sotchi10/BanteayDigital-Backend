@@ -17,6 +17,12 @@ const reportInclude = {
   communityPost: { select: { id: true, title: true, publishedAt: true } },
 }
 
+const adminReportInclude = {
+  ...reportInclude,
+  user: { select: { id: true, name: true, email: true, phone_num: true, avatarUrl: true } },
+  reviewedBy: { select: { id: true, name: true, email: true } },
+}
+
 const pageResult = async (where, query, include = reportInclude) => {
   const { page, limit } = query
   const [reports, total] = await Promise.all([
@@ -37,13 +43,10 @@ const getUserReport = async ({ id, userId }) => {
 const listAdminReports = ({ query }) => pageResult({
   ...(query.status && { status: query.status }),
   ...(query.userId && { userId: query.userId }),
-}, query, {
-  ...reportInclude,
-  reviewedBy: { select: { id: true, name: true, email: true } },
-})
+}, query, adminReportInclude)
 
 const getAdminReport = async ({ id }) => {
-  const report = await reportRepository.scamReport.findUnique({ where: { id }, include: { ...reportInclude, reviewedBy: { select: { id: true, name: true, email: true } } } })
+  const report = await reportRepository.scamReport.findUnique({ where: { id }, include: adminReportInclude })
   if (!report) throw new ApiError(404, 'Scam report not found')
   return report
 }
@@ -88,7 +91,39 @@ const reviewReport = async ({ id, adminId, status, reviewNote }) => {
   })
   if (update.count !== 1) throw new ApiError(409, 'Scam report has already been reviewed')
 
-  return reportRepository.scamReport.findUnique({ where: { id }, include: reportInclude })
+  return reportRepository.scamReport.findUnique({ where: { id }, include: adminReportInclude })
+}
+
+const updateManagedReport = async ({ id, title, content, summary }) => {
+  const report = await reportRepository.scamReport.findUnique({
+    where: { id },
+    select: { id: true, status: true, communityPost: { select: { id: true } } },
+  })
+  if (!report) throw new ApiError(404, 'Scam report not found')
+  if (report.status !== APPROVED_REPORT_STATUS) throw new ApiError(409, 'Only approved reports can be edited')
+
+  await reportRepository.$transaction(async (tx) => {
+    await tx.scamReport.update({
+      where: { id },
+      data: {
+        ...(title !== undefined && { title }),
+        ...(content !== undefined && { content }),
+      },
+    })
+
+    if (report.communityPost) {
+      await tx.communityPost.update({
+        where: { id: report.communityPost.id },
+        data: {
+          ...(title !== undefined && { title }),
+          ...(content !== undefined && { content }),
+          ...(summary !== undefined && { summary }),
+        },
+      })
+    }
+  })
+
+  return getAdminReport({ id })
 }
 
 const publishReport = async ({ id, adminId, title, summary, content }) => {
@@ -108,4 +143,4 @@ const setReportRepositoryForTests = (repository) => {
   reportRepository = repository || prisma
 }
 
-export { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport, setReportRepositoryForTests }
+export { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport, setReportRepositoryForTests, updateManagedReport }
