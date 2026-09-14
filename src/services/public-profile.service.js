@@ -9,7 +9,7 @@ const publicProfileSelect = {
   reports: {
     where: {
       status: 'APPROVED',
-      communityPost: { isNot: null },
+      communityPost: { is: { isPublished: true } },
     },
     orderBy: { createdAt: 'desc' },
     select: {

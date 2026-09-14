@@ -15,14 +15,15 @@ import {
 const publicPost = { id: 'post-1' }
 
 test('post list exposes counts and the current user like state', async (t) => {
+  let listQuery
   setCommunityImageUrlResolverForTests((path) => path ? `https://cdn.example/${path}` : null)
   setCommunityRepositoryForTests({
     communityPost: {
-      findMany: async () => [{
+      findMany: async (query) => { listQuery = query; return [{
         id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
         report: { scan: { imageStoragePath: 'scans/user-1/scan.png' } },
         _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }],
-      }],
+      }] },
       count: async () => 1,
     },
   })
@@ -36,6 +37,7 @@ test('post list exposes counts and the current user like state', async (t) => {
   assert.equal(result.posts[0].imageUrl, 'https://cdn.example/scans/user-1/scan.png')
   assert.equal('likes' in result.posts[0], false)
   assert.equal('report' in result.posts[0], false)
+  assert.equal(listQuery.where.isPublished, true)
 })
 
 test('a share records its channel and returns the current count', async (t) => {

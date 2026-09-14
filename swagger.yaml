@@ -84,6 +84,11 @@ components:
         title: { type: string, minLength: 3, maxLength: 255 }
         summary: { type: string, minLength: 10, maxLength: 500 }
         content: { type: string, minLength: 10, maxLength: 50000 }
+    ReportPublicationInput:
+      type: object
+      required: [isPublished]
+      properties:
+        isPublished: { type: boolean }
     ManagedReportUpdateInput:
       type: object
       description: Editable public-facing fields for an approved report. If already published, its community post is updated too.
@@ -332,6 +337,12 @@ paths:
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ManagedReportUpdateInput' } } } }
       responses: { '200': { description: Report updated. }, '400': { $ref: '#/components/responses/BadRequest' }, '409': { $ref: '#/components/responses/Conflict' } }
+    delete:
+      tags: [Admin Reports]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Permanently delete an approved report and its linked community content
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '204': { description: Report deleted. }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/admin/detection-rules:
     get:
       tags: [Admin Detection Rules]
@@ -378,6 +389,15 @@ paths:
         required: true
         content: { application/json: { schema: { $ref: '#/components/schemas/PublishInput' } } }
       responses: { '201': { description: Community post published. }, '409': { $ref: '#/components/responses/Conflict' } }
+  /api/v1/admin/reports/{id}/publication:
+    patch:
+      tags: [Admin Reports]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Publish or unpublish an existing community post
+      description: Unpublishing hides the post and removes all of its likes and comments.
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/ReportPublicationInput' } } } }
+      responses: { '200': { description: Publication visibility updated. }, '404': { $ref: '#/components/responses/NotFound' }, '409': { $ref: '#/components/responses/Conflict' } }
   /api/v1/community/posts:
     get:
       tags: [Community Posts]

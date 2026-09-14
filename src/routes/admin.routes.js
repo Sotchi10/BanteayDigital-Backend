@@ -1,11 +1,11 @@
 import { Router } from 'express'
-import { approve, getAdminById, listAdmin, publish, reject, updateManaged } from '../controllers/report.controller.js'
+import { approve, getAdminById, listAdmin, publish, reject, removeManaged, setPublication, updateManaged } from '../controllers/report.controller.js'
 import { create as createScamCase, list as listScamCases, update as updateScamCase } from '../controllers/scam-case.controller.js'
 import { getForAdmin as getAdminScan } from '../controllers/scan.controller.js'
 import requireAuth from '../middleware/auth.middleware.js'
 import requireRole from '../middleware/role.middleware.js'
 import validate from '../middleware/validate.middleware.js'
-import { adminReviewSchema, listAdminReportsQuerySchema, publishReportSchema, reportIdParamSchema, updateManagedReportSchema } from '../validators/report.validator.js'
+import { adminReviewSchema, listAdminReportsQuerySchema, publishReportSchema, reportIdParamSchema, reportPublicationSchema, updateManagedReportSchema } from '../validators/report.validator.js'
 import { createScamCaseSchema, scamCaseIdParamSchema, updateScamCaseSchema } from '../validators/scam-case.validator.js'
 import { scanIdParamSchema } from '../validators/scan.validator.js'
 import { create as createDetectionRule, list as listDetectionRules, update as updateDetectionRule } from '../controllers/detection-rule.controller.js'
@@ -31,5 +31,7 @@ router.patch('/reports/:id', validate({ params: reportIdParamSchema, body: updat
 router.patch('/reports/:id/approve', validate({ params: reportIdParamSchema, body: adminReviewSchema }), approve)
 router.patch('/reports/:id/reject', validate({ params: reportIdParamSchema, body: adminReviewSchema }), reject)
 router.post('/reports/:id/publish', validate({ params: reportIdParamSchema, body: publishReportSchema }), publish)
+router.patch('/reports/:id/publication', validate({ params: reportIdParamSchema, body: reportPublicationSchema }), setPublication)
+router.delete('/reports/:id', validate(reportIdParamSchema, 'params'), removeManaged)
 
 export default router

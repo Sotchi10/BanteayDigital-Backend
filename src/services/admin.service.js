@@ -98,7 +98,7 @@ const listUsers = async ({ query }) => {
           },
         },
         reports: {
-          where: { communityPost: { isNot: null } },
+          where: { communityPost: { is: { isPublished: true } } },
           select: { id: true },
         },
       },
@@ -109,7 +109,7 @@ const listUsers = async ({ query }) => {
     adminRepository.user.count({ where }),
     adminRepository.user.count({ where: { role: 'USER' } }),
     adminRepository.user.count({ where: { role: 'USER', reports: { some: {} } } }),
-    adminRepository.user.count({ where: { role: 'USER', reports: { some: { communityPost: { isNot: null } } } } }),
+    adminRepository.user.count({ where: { role: 'USER', reports: { some: { communityPost: { is: { isPublished: true } } } } } }),
   ])
 
   return {

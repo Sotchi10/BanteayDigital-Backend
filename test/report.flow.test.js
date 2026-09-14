@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { createReportFromScan, publishReport, reviewReport, setReportRepositoryForTests, updateManagedReport } from '../src/services/report.service.js'
+import {
+  createReportFromScan,
+  deleteManagedReport,
+  publishReport,
+  reviewReport,
+  setReportPublication,
+  setReportRepositoryForTests,
+  updateManagedReport,
+} from '../src/services/report.service.js'
 
 test('a user report is created only from the user\'s own scan', async (t) => {
   const created = []
@@ -91,4 +99,56 @@ test('editing a published report updates both the report and community post', as
   assert.equal(reportUpdates[0].data.title, 'Updated warning')
   assert.equal(postUpdates[0].where.id, 'post-1')
   assert.equal(postUpdates[0].data.summary, 'Updated safety summary.')
+})
+
+test('unpublishing hides the post and clears its likes and comments in one transaction', async (t) => {
+  const operations = []
+  let lookupCount = 0
+  setReportRepositoryForTests({
+    scamReport: {
+      findUnique: async () => {
+        lookupCount += 1
+        return {
+          id: 'report-1',
+          status: 'APPROVED',
+          communityPost: { id: 'post-1', isPublished: lookupCount > 1 ? false : true },
+        }
+      },
+    },
+    $transaction: async (work) => work({
+      communityPost: { update: async (query) => operations.push(['post', query]) },
+      postLike: { deleteMany: async (query) => operations.push(['likes', query]) },
+      comment: { deleteMany: async (query) => operations.push(['comments', query]) },
+    }),
+  })
+  t.after(() => setReportRepositoryForTests())
+
+  const report = await setReportPublication({ id: 'report-1', isPublished: false })
+
+  assert.equal(report.communityPost.isPublished, false)
+  assert.deepEqual(operations, [
+    ['post', { where: { id: 'post-1' }, data: { isPublished: false } }],
+    ['likes', { where: { postId: 'post-1' } }],
+    ['comments', { where: { postId: 'post-1' } }],
+  ])
+})
+
+test('deleting a managed report resets its linked scan before removing the report', async (t) => {
+  const operations = []
+  setReportRepositoryForTests({
+    scamReport: {
+      findUnique: async () => ({ id: 'report-1', status: 'APPROVED', scanId: 'scan-1' }),
+    },
+    $transaction: async (work) => work({
+      scan: { updateMany: async (query) => operations.push(['scan', query]) },
+      scamReport: { delete: async (query) => operations.push(['report', query]) },
+    }),
+  })
+  t.after(() => setReportRepositoryForTests())
+
+  assert.deepEqual(await deleteManagedReport({ id: 'report-1' }), { id: 'report-1' })
+  assert.deepEqual(operations, [
+    ['scan', { where: { id: 'scan-1' }, data: { reportStatus: 'NOT_REPORTED' } }],
+    ['report', { where: { id: 'report-1' } }],
+  ])
 })

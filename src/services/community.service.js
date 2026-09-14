@@ -5,7 +5,7 @@ import { getPublicScanImageUrl } from './scan-image-storage.service.js'
 let communityRepository = prisma
 let imageUrlResolver = getPublicScanImageUrl
 
-const publicPostWhere = { report: { is: { status: 'APPROVED' } } }
+const publicPostWhere = { isPublished: true, report: { is: { status: 'APPROVED' } } }
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true }
 
 const postInclude = (userId) => ({

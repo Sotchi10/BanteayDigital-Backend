@@ -1,5 +1,16 @@
 import asyncHandler from '../utils/async-handler.js'
-import { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport, updateManagedReport } from '../services/report.service.js'
+import {
+  createReportFromScan,
+  deleteManagedReport,
+  getAdminReport,
+  getUserReport,
+  listAdminReports,
+  listUserReports,
+  publishReport,
+  reviewReport,
+  setReportPublication,
+  updateManagedReport,
+} from '../services/report.service.js'
 
 const createFromScan = asyncHandler(async (request, response) => {
   const report = await createReportFromScan({ scanId: request.params.id, userId: request.auth.userId, ...request.body })
@@ -67,4 +78,14 @@ const updateManaged = asyncHandler(async (request, response) => {
   response.json({ report })
 })
 
-export { approve, createFromScan, getAdminById, getById, list, listAdmin, publish, reject, updateManaged }
+const setPublication = asyncHandler(async (request, response) => {
+  const report = await setReportPublication({ id: request.params.id, isPublished: request.body.isPublished })
+  response.json({ report })
+})
+
+const removeManaged = asyncHandler(async (request, response) => {
+  await deleteManagedReport({ id: request.params.id })
+  response.status(204).end()
+})
+
+export { approve, createFromScan, getAdminById, getById, list, listAdmin, publish, reject, removeManaged, setPublication, updateManaged }
