@@ -192,7 +192,6 @@ enum scan_deterministicAssessment {
   UNABLE_TO_ASSESS
 }
 
-<<<<<<< HEAD
 enum user_role {
   USER
   ADMIN
@@ -207,7 +206,6 @@ enum user_status {
 enum scan_reportStatus {
   NOT_REPORTED
   REPORTED
-=======
 enum CommentStatus {
   ACTIVE
   DELETED
@@ -389,7 +387,6 @@ model CommunityPost {
   comments Comment[]
 
   @@index([publishedAt])
->>>>>>> 7cfdaa9084805e2ad0b8a83216277ddb6ea51edd
 }
 
 model PostLike {
