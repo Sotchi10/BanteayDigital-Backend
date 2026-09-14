@@ -2,7 +2,7 @@ import asyncHandler from '../utils/async-handler.js'
 import { createReportFromScan, getAdminReport, getUserReport, listAdminReports, listUserReports, publishReport, reviewReport, updateManagedReport } from '../services/report.service.js'
 
 const createFromScan = asyncHandler(async (request, response) => {
-  const report = await createReportFromScan({ scanId: request.params.id, userId: request.auth.userId, title: request.body.title })
+  const report = await createReportFromScan({ scanId: request.params.id, userId: request.auth.userId, ...request.body })
   response.status(201).json({ report })
 })
 

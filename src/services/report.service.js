@@ -51,7 +51,7 @@ const getAdminReport = async ({ id }) => {
   return report
 }
 
-const createReportFromScan = async ({ scanId, userId, title }) => {
+const createReportFromScan = async ({ scanId, userId, title, reason, details, evidence }) => {
   try {
     return await reportRepository.$transaction(async (tx) => {
       const scan = await tx.scan.findFirst({
@@ -66,6 +66,9 @@ const createReportFromScan = async ({ scanId, userId, title }) => {
           userId,
           scanId: scan.id,
           title: title || null,
+          ...(reason ? { reason } : {}),
+          ...(details ? { details } : {}),
+          ...(evidence ? { evidence } : {}),
           content: scan.rawInput,
           ...(scan.inputType === 'URL' ? { sourceUrl: scan.rawInput } : {}),
         },

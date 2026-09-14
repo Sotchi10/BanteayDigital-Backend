@@ -1,13 +1,18 @@
 import prisma from '../config/database.js'
 import ApiError from '../utils/api-error.js'
+import { getPublicScanImageUrl } from './scan-image-storage.service.js'
 
 let communityRepository = prisma
+let imageUrlResolver = getPublicScanImageUrl
 
 const publicPostWhere = { report: { is: { status: 'APPROVED' } } }
 const publicAuthorSelect = { id: true, name: true, avatarUrl: true }
 
 const postInclude = (userId) => ({
   author: { select: publicAuthorSelect },
+  // A post only exposes the original screenshot after its report has been
+  // approved. Do not return the report itself (which may contain private data).
+  report: { select: { scan: { select: { imageStoragePath: true } } } },
   _count: {
     select: {
       likes: true,
@@ -18,10 +23,12 @@ const postInclude = (userId) => ({
   ...(userId ? { likes: { where: { userId }, select: { id: true }, take: 1 } } : {}),
 })
 
-const serializePost = (post) => {
-  const { _count, likes, ...publicPost } = post
+const serializePost = async (post) => {
+  const { _count, likes, report, ...publicPost } = post
+  const imageUrl = await imageUrlResolver(report?.scan?.imageStoragePath)
   return {
     ...publicPost,
+    ...(imageUrl ? { imageUrl } : {}),
     interaction: {
       likeCount: _count?.likes || 0,
       shareCount: _count?.shares || 0,
@@ -65,7 +72,7 @@ const listPosts = async ({ query, userId }) => {
     communityRepository.communityPost.count({ where: publicPostWhere }),
   ])
   return {
-    posts: posts.map(serializePost),
+    posts: await Promise.all(posts.map(serializePost)),
     meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) },
   }
 }
@@ -76,7 +83,7 @@ const getPostById = async ({ id, userId }) => {
     include: postInclude(userId),
   })
   if (!post) throw new ApiError(404, 'Community post not found')
-  return serializePost(post)
+  return await serializePost(post)
 }
 
 const likePost = async ({ postId, userId }) => {
@@ -240,6 +247,10 @@ const setCommunityRepositoryForTests = (repository) => {
   communityRepository = repository || prisma
 }
 
+const setCommunityImageUrlResolverForTests = (resolver) => {
+  imageUrlResolver = resolver || getPublicScanImageUrl
+}
+
 export {
   createComment,
   deleteComment,
@@ -250,6 +261,7 @@ export {
   moderateComment,
   recordPostShare,
   reportComment,
+  setCommunityImageUrlResolverForTests,
   setCommunityRepositoryForTests,
   unlikePost,
   updateComment,

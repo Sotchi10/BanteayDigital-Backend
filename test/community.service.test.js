@@ -6,6 +6,7 @@ import {
   likePost,
   listPosts,
   recordPostShare,
+  setCommunityImageUrlResolverForTests,
   setCommunityRepositoryForTests,
   unlikePost,
   updateComment,
@@ -14,20 +15,27 @@ import {
 const publicPost = { id: 'post-1' }
 
 test('post list exposes counts and the current user like state', async (t) => {
+  setCommunityImageUrlResolverForTests((path) => path ? `https://cdn.example/${path}` : null)
   setCommunityRepositoryForTests({
     communityPost: {
       findMany: async () => [{
         id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
+        report: { scan: { imageStoragePath: 'scans/user-1/scan.png' } },
         _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }],
       }],
       count: async () => 1,
     },
   })
-  t.after(() => setCommunityRepositoryForTests())
+  t.after(() => {
+    setCommunityImageUrlResolverForTests()
+    setCommunityRepositoryForTests()
+  })
 
   const result = await listPosts({ query: { page: 1, limit: 20 }, userId: 'user-1' })
   assert.deepEqual(result.posts[0].interaction, { likeCount: 3, shareCount: 4, commentCount: 2, likedByMe: true })
+  assert.equal(result.posts[0].imageUrl, 'https://cdn.example/scans/user-1/scan.png')
   assert.equal('likes' in result.posts[0], false)
+  assert.equal('report' in result.posts[0], false)
 })
 
 test('a share records its channel and returns the current count', async (t) => {
