@@ -3,6 +3,7 @@ import env from '../config/env.js'
 import { runScan } from '../scanner/scan.engine.js'
 import { analyzeScan, retrieveSimilarScamCases } from './ai-service.client.js'
 import ApiError from '../utils/api-error.js'
+import { removeScanImage } from './scan-image-storage.service.js'
 
 let scanRepository = prisma
 let aiRetriever = retrieveSimilarScamCases
@@ -189,6 +190,18 @@ const getOwnedScan = async ({ id, userId }) => {
   return serializeScan(scan, scan.retrievalEvidence?.matches || [])
 }
 
+const deleteOwnedScan = async ({ id, userId }) => {
+  const scan = await scanRepository.scan.findFirst({
+    where: { id, userId },
+    select: { id: true, imageStoragePath: true },
+  })
+  if (!scan) throw new ApiError(404, 'Scan not found')
+
+  await scanRepository.scan.delete({ where: { id: scan.id } })
+  await removeScanImage(scan.imageStoragePath)
+  return { id: scan.id }
+}
+
 const listOwnedScans = async ({ userId, query }) => {
   const { page, limit } = query
   const where = { userId }
@@ -212,4 +225,4 @@ const setScanRepositoryForTests = (repository) => { scanRepository = repository 
 const setAiRetrieverForTests = (retriever) => { aiRetriever = retriever || retrieveSimilarScamCases }
 const setAiAnalyzerForTests = (analyzer) => { aiAnalyzer = analyzer || analyzeScan }
 
-export { createScan, getAdminScan, getOwnedScan, listOwnedScans, setAiAnalyzerForTests, setAiRetrieverForTests, setScanRepositoryForTests }
+export { createScan, deleteOwnedScan, getAdminScan, getOwnedScan, listOwnedScans, setAiAnalyzerForTests, setAiRetrieverForTests, setScanRepositoryForTests }

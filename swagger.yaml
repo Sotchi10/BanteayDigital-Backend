@@ -270,6 +270,12 @@ paths:
       summary: Get the current user's private scan result
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses: { '200': { description: Scan found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Scans]
+      security: [{ bearerAuth: [] }]
+      summary: Permanently delete the current user's private scan
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '204': { description: Scan deleted. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
   /api/v1/scans/{id}/report:
     post:
       tags: [Reports]

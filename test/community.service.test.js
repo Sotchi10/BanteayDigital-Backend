@@ -83,6 +83,7 @@ test('a share records its channel and returns the current count', async (t) => {
   assert.deepEqual(result, { shared: true, shareCount: 7 })
 })
 
+
 test('like and unlike are idempotent operations backed by the unique user-post pair', async (t) => {
   const operations = []
   setCommunityRepositoryForTests({

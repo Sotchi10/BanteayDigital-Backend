@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { create, getById, list } from '../controllers/scan.controller.js'
+import { create, getById, list, remove } from '../controllers/scan.controller.js'
 import { uploadScanImageIfMultipart } from '../middleware/scan-image-upload.middleware.js'
 import { createFromScan } from '../controllers/report.controller.js'
 import requireAuth, { optionalAuth } from '../middleware/auth.middleware.js'
@@ -36,6 +36,7 @@ const limitMultipartUploads = (request, response, next) => (
 router.post('/', optionalAuth, blockGuestImageUploads, limitMultipartUploads, aiRateLimiter, uploadScanImageIfMultipart, validateScanRequest, enforceScanQuota, create)
 router.get('/', requireAuth, validate(listScansQuerySchema, 'query'), list)
 router.get('/:id', requireAuth, validate(scanIdParamSchema, 'params'), getById)
+router.delete('/:id', requireAuth, validate(scanIdParamSchema, 'params'), remove)
 router.post('/:id/report', requireAuth, reportRateLimiter, validate({ params: scanIdParamSchema, body: reportFromScanSchema }), enforceReportQuota, createFromScan)
 
 export default router
