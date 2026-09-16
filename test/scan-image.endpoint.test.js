@@ -3,9 +3,10 @@ import http from 'node:http'
 import test from 'node:test'
 import { createApp } from '../src/app.js'
 import { setAuthRepositoryForTests } from '../src/middleware/auth.middleware.js'
-import { setImageStorageForTests, setOcrExtractorForTests } from '../src/services/scan-image.service.js'
+import { setImageStorageForTests, setLocalOcrExtractorForTests, setOcrExtractorForTests } from '../src/services/scan-image.service.js'
 import { setAiAnalyzerForTests, setAiRetrieverForTests, setScanRepositoryForTests } from '../src/services/scan.service.js'
 import { signToken } from '../src/utils/auth.js'
+import ApiError from '../src/utils/api-error.js'
 
 const activeUser = {
   user: { findUnique: async () => ({ id: 'user-1', tokenVersion: 0, role: 'USER', status: 'ACTIVE' }) },
@@ -78,6 +79,32 @@ test('POST /api/v1/scans analyzes an IMAGE through the text scan flow', async (t
   assert.equal(body.scan.inputType, 'IMAGE')
   assert.equal(body.scan.rawInput, 'Send your OTP now')
   assert.equal(body.scan.analysis.source, 'GEMINI_SIMPLE')
+})
+
+test('POST /api/v1/scans falls back to local English OCR when AI OCR is unavailable', async (t) => {
+  setAuthRepositoryForTests(activeUser)
+  t.after(() => setAuthRepositoryForTests())
+  setOcrExtractorForTests(async () => { throw new ApiError(503, 'AI OCR service is unavailable') })
+  t.after(() => setOcrExtractorForTests())
+  let localCalls = 0
+  setLocalOcrExtractorForTests(async () => {
+    localCalls++
+    return { text: 'Send your OTP now', languages: 'eng', character_count: 17, source: 'LOCAL_TESSERACT' }
+  })
+  t.after(() => setLocalOcrExtractorForTests())
+  configureImageScanDependencies(t)
+  const baseUrl = await startServer(t)
+  const form = new FormData()
+  form.append('inputType', 'IMAGE')
+  form.append('image', new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: 'image/png' }), 'scan.png')
+
+  const response = await fetch(`${baseUrl}/api/v1/scans`, {
+    method: 'POST', headers: { authorization: `Bearer ${signToken('user-1', 0)}` }, body: form,
+  })
+
+  assert.equal(response.status, 201)
+  assert.equal(localCalls, 1)
+  assert.equal((await response.json()).scan.rawInput, 'Send your OTP now')
 })
 
 test('POST /api/v1/scans rejects unsupported image types', async (t) => {

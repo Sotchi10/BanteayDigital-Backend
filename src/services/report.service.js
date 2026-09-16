@@ -10,7 +10,7 @@ const reportInclude = {
   scan: {
     select: {
       id: true, inputType: true, normalizedInput: true, findings: true, assessment: true,
-      score: true, analysisSummary: true, reportStatus: true, createdAt: true,
+      score: true, analysisSummary: true, analysisSignals: true, evidenceSufficiency: true, reportStatus: true, createdAt: true,
       scamCaseMatches: { select: { similarity: true, matchReason: true, scamCase: { select: { id: true, title: true, scamType: true, riskLevel: true } } } },
     },
   },

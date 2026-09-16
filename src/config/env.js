@@ -57,6 +57,7 @@ const env = {
   cookieSameSite,
   aiServiceUrl: process.env.AI_SERVICE_URL || null,
   aiServiceApiKey: process.env.AI_SERVICE_API_KEY || null,
+  virusTotalApiKey: process.env.VIRUSTOTAL_API_KEY || null,
   supabaseUrl: process.env.SUPABASE_URL || null,
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY || null,
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET || null,

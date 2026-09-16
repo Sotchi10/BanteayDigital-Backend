@@ -142,6 +142,8 @@ model Scan {
   score                   Int
   analysisSummary         String?          @db.Text
   analysisReasons         Json?
+  analysisSignals         Json?
+  evidenceSufficiency     String?          @db.VarChar(20)
   recommendedActions      Json?
   analysisSource          String?          @db.VarChar(50)
   citedCaseIds            Json?

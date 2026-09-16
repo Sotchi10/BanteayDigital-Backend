@@ -15,7 +15,7 @@
     "prisma:seed:detection-rules": "node src/prisma/seed-detection-rules.js",
     "prisma:studio": "prisma studio",
     "benchmark:text": "node scripts/benchmark-text-analysis.js",
-    "test": "node --test"
+    "test": "node --import ./scripts/test-env.js --test"
   },
   "keywords": [],
   "author": "",

@@ -3,8 +3,10 @@ import ApiError from '../utils/api-error.js'
 import { extractImageText } from './ai-service.client.js'
 import { createScan } from './scan.service.js'
 import { removeScanImage, uploadScanImage } from './scan-image-storage.service.js'
+import { extractImageTextLocally } from './local-ocr.service.js'
 
 let ocrExtractor = extractImageText
+let localOcrExtractor = extractImageTextLocally
 let imageUploader = uploadScanImage
 let imageRemover = removeScanImage
 
@@ -34,7 +36,13 @@ const createImageScan = async ({ userId, image, language }) => {
       storagePath = undefined
     }
 
-    const extraction = await ocrExtractor(image)
+    let extraction
+    try {
+      extraction = await ocrExtractor(image)
+    } catch (error) {
+      if (error?.statusCode !== 503) throw error
+      extraction = await localOcrExtractor(image)
+    }
     const text = extraction.text?.trim() || ''
     if (!text) {
       throw new ApiError(422, 'No readable text was found in the image', { code: 'NO_READABLE_TEXT' })
@@ -57,9 +65,13 @@ const setOcrExtractorForTests = (extractor) => {
   ocrExtractor = extractor || extractImageText
 }
 
+const setLocalOcrExtractorForTests = (extractor) => {
+  localOcrExtractor = extractor || extractImageTextLocally
+}
+
 const setImageStorageForTests = ({ uploader, remover } = {}) => {
   imageUploader = uploader || uploadScanImage
   imageRemover = remover || removeScanImage
 }
 
-export { createImageScan, setImageStorageForTests, setOcrExtractorForTests }
+export { createImageScan, setImageStorageForTests, setLocalOcrExtractorForTests, setOcrExtractorForTests }
