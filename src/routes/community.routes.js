@@ -7,10 +7,13 @@ import {
   like,
   list,
   listPostComments,
+  listSaved,
   moderate,
   removeComment,
+  save,
   share,
   unlike,
+  unsave,
 } from '../controllers/community.controller.js'
 import { optionalAuth, requireAuth } from '../middleware/auth.middleware.js'
 import requireRole from '../middleware/role.middleware.js'
@@ -30,9 +33,12 @@ import {
 const router = Router()
 
 router.get('/posts', optionalAuth, validate(listPostsQuerySchema, 'query'), list)
+router.get('/posts/saved', requireAuth, validate(listPostsQuerySchema, 'query'), listSaved)
 router.get('/posts/:id', optionalAuth, validate(postIdParamSchema, 'params'), getById)
 router.put('/posts/:id/like', requireAuth, validate(postIdParamSchema, 'params'), like)
 router.delete('/posts/:id/like', requireAuth, validate(postIdParamSchema, 'params'), unlike)
+router.put('/posts/:id/save', requireAuth, validate(postIdParamSchema, 'params'), save)
+router.delete('/posts/:id/save', requireAuth, validate(postIdParamSchema, 'params'), unsave)
 router.post('/posts/:id/shares', optionalAuth, validate({ params: postIdParamSchema, body: recordShareSchema }), share)
 router.get('/posts/:id/comments', validate({ params: postIdParamSchema, query: listCommentsQuerySchema }), listPostComments)
 router.post('/posts/:id/comments', requireAuth, validate({ params: postIdParamSchema, body: createCommentSchema }), createPostComment)

@@ -6,8 +6,18 @@ const notFoundHandler = (request, _response, next) => {
   next(error)
 }
 
-const errorHandler = (error, _request, response, _next) => {
+const errorHandler = (error, request, response, _next) => {
   const statusCode = error.statusCode || error.status || 500
+
+  if (statusCode >= 500) {
+    console.error('Unhandled API error', {
+      method: request.method,
+      path: request.originalUrl,
+      message: error.message,
+      stack: error.stack,
+    })
+  }
+
   const body = {
     message: error instanceof ApiError ? error.message : statusCode >= 500 ? 'Internal server error' : error.message || 'Request failed',
   }

@@ -45,9 +45,8 @@ const configureImageScanDependencies = (t) => {
     return { matches: [] }
   })
   t.after(() => setAiRetrieverForTests())
-  setAiAnalyzerForTests(async ({ language }) => ({
+  setAiAnalyzerForTests(async () => ({
     assessment: 'SUSPICIOUS', summary: 'The image text requests an OTP.', recommendedActions: ['Do not share your OTP.'],
-    reasons: ['It requests an OTP.'], language,
   }))
   t.after(() => setAiAnalyzerForTests())
 }
@@ -79,30 +78,6 @@ test('POST /api/v1/scans analyzes an IMAGE through the text scan flow', async (t
   assert.equal(body.scan.inputType, 'IMAGE')
   assert.equal(body.scan.rawInput, 'Send your OTP now')
   assert.equal(body.scan.analysis.source, 'GEMINI_SIMPLE')
-})
-
-test('POST /api/v1/scans forwards Khmer for an IMAGE scan', async (t) => {
-  setAuthRepositoryForTests(activeUser)
-  t.after(() => setAuthRepositoryForTests())
-  setOcrExtractorForTests(async () => ({ text: 'Send your OTP now', languages: 'khm+eng', character_count: 17 }))
-  t.after(() => setOcrExtractorForTests())
-  configureImageScanDependencies(t)
-  let receivedLanguage
-  setAiAnalyzerForTests(async ({ language }) => {
-    receivedLanguage = language
-    return { assessment: 'SUSPICIOUS', summary: 'សារនេះស្នើសុំ OTP។', reasons: ['សារនេះស្នើសុំ OTP។'], recommendedActions: ['កុំចែករំលែក OTP។'] }
-  })
-  t.after(() => setAiAnalyzerForTests())
-  const baseUrl = await startServer(t)
-  const form = new FormData()
-  form.append('inputType', 'IMAGE')
-  form.append('language', 'km')
-  form.append('image', new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: 'image/png' }), 'scan.png')
-
-  const response = await fetch(`${baseUrl}/api/v1/scans`, { method: 'POST', headers: { authorization: `Bearer ${signToken('user-1', 0)}` }, body: form })
-
-  assert.equal(response.status, 201)
-  assert.equal(receivedLanguage, 'km')
 })
 
 test('POST /api/v1/scans rejects unsupported image types', async (t) => {

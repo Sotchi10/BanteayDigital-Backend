@@ -4,11 +4,14 @@ import {
   createComment,
   deleteComment,
   likePost,
+  listSavedPosts,
   listPosts,
   recordPostShare,
+  savePost,
   setCommunityImageUrlResolverForTests,
   setCommunityRepositoryForTests,
   unlikePost,
+  unsavePost,
   updateComment,
 } from '../src/services/community.service.js'
 
@@ -22,7 +25,7 @@ test('post list exposes counts and the current user like state', async (t) => {
       findMany: async (query) => { listQuery = query; return [{
         id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
         report: { scan: { imageStoragePath: 'scans/user-1/scan.png' }, user: { id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null } },
-        _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }],
+        _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }], saves: [{ id: 'save-1' }],
       }] },
       count: async () => 1,
     },
@@ -33,7 +36,7 @@ test('post list exposes counts and the current user like state', async (t) => {
   })
 
   const result = await listPosts({ query: { page: 1, limit: 20 }, userId: 'user-1' })
-  assert.deepEqual(result.posts[0].interaction, { likeCount: 3, shareCount: 4, commentCount: 2, likedByMe: true })
+  assert.deepEqual(result.posts[0].interaction, { likeCount: 3, shareCount: 4, commentCount: 2, likedByMe: true, savedByMe: true })
   assert.equal(result.posts[0].imageUrl, 'https://cdn.example/scans/user-1/scan.png')
   assert.deepEqual(result.posts[0].author, {
     id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null,
@@ -42,6 +45,7 @@ test('post list exposes counts and the current user like state', async (t) => {
   assert.equal('report' in result.posts[0], false)
   assert.equal(listQuery.where.isPublished, true)
   assert.equal(listQuery.include.report.select.user.select.username, true)
+  assert.equal(listQuery.include.saves.where.userId, 'user-1')
 })
 
 test('post ownership uses the reporter display name when no username is set', async (t) => {
@@ -83,7 +87,6 @@ test('a share records its channel and returns the current count', async (t) => {
   assert.deepEqual(result, { shared: true, shareCount: 7 })
 })
 
-
 test('like and unlike are idempotent operations backed by the unique user-post pair', async (t) => {
   const operations = []
   setCommunityRepositoryForTests({
@@ -100,6 +103,53 @@ test('like and unlike are idempotent operations backed by the unique user-post p
   assert.deepEqual(operations[0].where, { postId_userId: { postId: 'post-1', userId: 'user-1' } })
   assert.deepEqual(await unlikePost({ postId: 'post-1', userId: 'user-1' }), { liked: false, likeCount: 4 })
   assert.deepEqual(operations[1].where, { postId: 'post-1', userId: 'user-1' })
+})
+
+test('save and unsave are idempotent operations backed by the unique user-post pair', async (t) => {
+  const operations = []
+  setCommunityRepositoryForTests({
+    communityPost: { findFirst: async () => publicPost },
+    postSave: {
+      upsert: async (query) => { operations.push(query); return { id: 'save-1' } },
+      deleteMany: async (query) => { operations.push(query); return { count: 1 } },
+    },
+  })
+  t.after(() => setCommunityRepositoryForTests())
+
+  assert.deepEqual(await savePost({ postId: 'post-1', userId: 'user-1' }), { saved: true })
+  assert.deepEqual(operations[0].where, { postId_userId: { postId: 'post-1', userId: 'user-1' } })
+  assert.deepEqual(await unsavePost({ postId: 'post-1', userId: 'user-1' }), { saved: false })
+  assert.deepEqual(operations[1].where, { postId: 'post-1', userId: 'user-1' })
+})
+
+test('saved posts list hides unpublished posts and uses newest-saved order', async (t) => {
+  let listQuery
+  let countQuery
+  setCommunityImageUrlResolverForTests(() => null)
+  setCommunityRepositoryForTests({
+    postSave: {
+      findMany: async (query) => {
+        listQuery = query
+        return [{ post: {
+          id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
+          report: { scan: null, user: { id: 'reporter-1', username: 'reporter', name: 'Reporter', avatarUrl: null } },
+          _count: { likes: 0, shares: 0, comments: 0 }, likes: [], saves: [{ id: 'save-1' }],
+        } }]
+      },
+      count: async ({ where }) => { countQuery = where; return 1 },
+    },
+  })
+  t.after(() => {
+    setCommunityImageUrlResolverForTests()
+    setCommunityRepositoryForTests()
+  })
+
+  const result = await listSavedPosts({ query: { page: 1, limit: 20 }, userId: 'user-1' })
+  assert.equal(result.posts[0].interaction.savedByMe, true)
+  assert.deepEqual(listQuery.orderBy, { createdAt: 'desc' })
+  assert.equal(listQuery.where.post.is.isPublished, true)
+  assert.equal(listQuery.where.post.is.report.is.status, 'APPROVED')
+  assert.deepEqual(countQuery, listQuery.where)
 })
 
 test('a reply must target an active top-level comment on the same post', async (t) => {

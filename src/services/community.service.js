@@ -28,10 +28,11 @@ const postInclude = (userId) => ({
     },
   },
   ...(userId ? { likes: { where: { userId }, select: { id: true }, take: 1 } } : {}),
+  ...(userId ? { saves: { where: { userId }, select: { id: true }, take: 1 } } : {}),
 })
 
 const serializePost = async (post) => {
-  const { _count, likes, report, author: moderator, ...publicPost } = post
+  const { _count, likes, saves, report, author: moderator, ...publicPost } = post
   const imageUrl = await imageUrlResolver(report?.scan?.imageStoragePath)
   const author = report?.user?.username || report?.user?.name
     ? report.user
@@ -47,6 +48,7 @@ const serializePost = async (post) => {
       shareCount: _count?.shares || 0,
       commentCount: _count?.comments || 0,
       likedByMe: Boolean(likes?.length),
+      savedByMe: Boolean(saves?.length),
     },
   }
 }
@@ -99,6 +101,25 @@ const getPostById = async ({ id, userId }) => {
   return await serializePost(post)
 }
 
+const listSavedPosts = async ({ query, userId }) => {
+  const { page, limit } = query
+  const where = { userId, post: { is: publicPostWhere } }
+  const [saves, total] = await Promise.all([
+    communityRepository.postSave.findMany({
+      where,
+      include: { post: { include: postInclude(userId) } },
+      skip: (page - 1) * limit,
+      take: limit,
+      orderBy: { createdAt: 'desc' },
+    }),
+    communityRepository.postSave.count({ where }),
+  ])
+  return {
+    posts: await Promise.all(saves.map(({ post }) => serializePost(post))),
+    meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) },
+  }
+}
+
 const likePost = async ({ postId, userId }) => {
   await ensurePublicPost(postId)
   await communityRepository.postLike.upsert({
@@ -115,6 +136,22 @@ const unlikePost = async ({ postId, userId }) => {
   await communityRepository.postLike.deleteMany({ where: { postId, userId } })
   const likeCount = await communityRepository.postLike.count({ where: { postId } })
   return { liked: false, likeCount }
+}
+
+const savePost = async ({ postId, userId }) => {
+  await ensurePublicPost(postId)
+  await communityRepository.postSave.upsert({
+    where: { postId_userId: { postId, userId } },
+    update: {},
+    create: { postId, userId },
+  })
+  return { saved: true }
+}
+
+const unsavePost = async ({ postId, userId }) => {
+  await ensurePublicPost(postId)
+  await communityRepository.postSave.deleteMany({ where: { postId, userId } })
+  return { saved: false }
 }
 
 const recordPostShare = async ({ postId, userId, channel }) => {
@@ -271,11 +308,14 @@ export {
   likePost,
   listComments,
   listPosts,
+  listSavedPosts,
   moderateComment,
   recordPostShare,
   reportComment,
+  savePost,
   setCommunityImageUrlResolverForTests,
   setCommunityRepositoryForTests,
   unlikePost,
+  unsavePost,
   updateComment,
 }
