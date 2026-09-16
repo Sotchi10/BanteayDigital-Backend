@@ -6,10 +6,13 @@ import {
   likePost,
   listComments,
   listPosts,
+  listSavedPosts,
   moderateComment,
   recordPostShare,
   reportComment,
+  savePost,
   unlikePost,
+  unsavePost,
   updateComment,
 } from '../services/community.service.js'
 
@@ -23,12 +26,24 @@ const getById = asyncHandler(async (request, response) => {
   response.json({ post })
 })
 
+const listSaved = asyncHandler(async (request, response) => {
+  response.json(await listSavedPosts({ query: request.query, userId: request.auth.userId }))
+})
+
 const like = asyncHandler(async (request, response) => {
   response.json(await likePost({ postId: request.params.id, userId: request.auth.userId }))
 })
 
 const unlike = asyncHandler(async (request, response) => {
   response.json(await unlikePost({ postId: request.params.id, userId: request.auth.userId }))
+})
+
+const save = asyncHandler(async (request, response) => {
+  response.json(await savePost({ postId: request.params.id, userId: request.auth.userId }))
+})
+
+const unsave = asyncHandler(async (request, response) => {
+  response.json(await unsavePost({ postId: request.params.id, userId: request.auth.userId }))
 })
 
 const share = asyncHandler(async (request, response) => {
@@ -74,4 +89,19 @@ const moderate = asyncHandler(async (request, response) => {
   response.json({ comment })
 })
 
-export { createPostComment, editComment, flagComment, getById, like, list, listPostComments, moderate, removeComment, share, unlike }
+export {
+  createPostComment,
+  editComment,
+  flagComment,
+  getById,
+  like,
+  list,
+  listPostComments,
+  listSaved,
+  moderate,
+  removeComment,
+  save,
+  share,
+  unlike,
+  unsave,
+}

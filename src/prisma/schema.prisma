@@ -97,6 +97,7 @@ model User {
   reviewedReports ScamReport[]    @relation("ReportReviewer")
   communityPosts  CommunityPost[] @relation("PostAuthor")
   postLikes       PostLike[]
+  postSaves       PostSave[]
   postShares      PostShare[]
   comments        Comment[]       @relation("CommentAuthor")
   commentReports  CommentReport[] @relation("CommentReporter")
@@ -251,6 +252,7 @@ model CommunityPost {
   report   ScamReport  @relation(fields: [reportId], references: [id], onDelete: Cascade)
   author   User        @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Restrict)
   likes    PostLike[]
+  saves    PostSave[]
   shares   PostShare[]
   comments Comment[]
 
@@ -292,6 +294,19 @@ model SafetyKnowledgeRelation {
 }
 
 model PostLike {
+  id        String   @id @default(cuid())
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, userId])
+  @@index([userId, createdAt])
+}
+
+model PostSave {
   id        String   @id @default(cuid())
   postId    String
   userId    String

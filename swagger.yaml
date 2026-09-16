@@ -404,6 +404,13 @@ paths:
       summary: List published community alerts
       parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
       responses: { '200': { description: Community posts found. } }
+  /api/v1/community/posts/saved:
+    get:
+      tags: [Community Posts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: List the current user's saved published community alerts
+      parameters: [{ $ref: '#/components/parameters/Page' }, { $ref: '#/components/parameters/Limit' }]
+      responses: { '200': { description: Saved community posts found in newest-saved order. }, '401': { $ref: '#/components/responses/Unauthorized' } }
   /api/v1/community/posts/{id}:
     get:
       tags: [Community Posts]
@@ -423,6 +430,19 @@ paths:
       summary: Remove the current user's helpful mark
       parameters: [{ $ref: '#/components/parameters/Id' }]
       responses: { '200': { description: Helpful state and current count returned. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/community/posts/{id}/save:
+    put:
+      tags: [Community Posts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Save a published community alert for the current user
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Saved state returned. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Community Posts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Remove a community alert from the current user's saved posts
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '200': { description: Saved state returned. }, '401': { $ref: '#/components/responses/Unauthorized' }, '404': { $ref: '#/components/responses/NotFound' } }
   /api/v1/community/posts/{id}/shares:
     post:
       tags: [Community Posts]
