@@ -8,7 +8,7 @@ let authRepository = prisma
 const extractToken = (request) => {
   const authorization = request.get('authorization')
   const bearerToken = authorization?.match(/^Bearer\s+(.+)$/i)?.[1]
-  return bearerToken || request.cookies?.token
+  return bearerToken || request.cookies?.[env.authCookieName]
 }
 
 const requireAuth = async (request, _response, next) => {
@@ -19,7 +19,11 @@ const requireAuth = async (request, _response, next) => {
   }
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret)
+    const payload = jwt.verify(token, env.jwtSecret, {
+      algorithms: ['HS256'],
+      audience: env.jwtAudience,
+      issuer: env.jwtIssuer,
+    })
     const user = await authRepository.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, tokenVersion: true, role: true, status: true },
@@ -61,7 +65,11 @@ const optionalAuth = async (request, _response, next) => {
   }
 
   try {
-    const payload = jwt.verify(token, env.jwtSecret)
+    const payload = jwt.verify(token, env.jwtSecret, {
+      algorithms: ['HS256'],
+      audience: env.jwtAudience,
+      issuer: env.jwtIssuer,
+    })
     const user = await authRepository.user.findUnique({
       where: { id: payload.sub },
       select: { id: true, tokenVersion: true, role: true, status: true },

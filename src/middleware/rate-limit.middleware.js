@@ -2,11 +2,29 @@ import env from '../config/env.js'
 
 const createRateLimiter = ({ windowMs, max, message = 'Too many requests. Please try again later.', bypass = env.devBypassRateLimits }) => {
   const requests = new Map()
+  const MAX_TRACKED_CLIENTS = 50_000
+  let operationsUntilCleanup = 1_000
+
+  const cleanup = (now) => {
+    for (const [key, entry] of requests) {
+      if (now >= entry.resetAt) requests.delete(key)
+    }
+    if (requests.size <= MAX_TRACKED_CLIENTS) return
+    for (const key of requests.keys()) {
+      if (requests.size <= MAX_TRACKED_CLIENTS) break
+      requests.delete(key)
+    }
+  }
 
   return (request, response, next) => {
     if (bypass) return next()
 
     const now = Date.now()
+    operationsUntilCleanup -= 1
+    if (operationsUntilCleanup <= 0 || requests.size >= MAX_TRACKED_CLIENTS) {
+      cleanup(now)
+      operationsUntilCleanup = 1_000
+    }
     const key = request.ip || request.socket.remoteAddress || 'unknown'
     const entry = requests.get(key)
 

@@ -19,7 +19,12 @@ const tokenClearCookieOptions = {
 }
 
 const signToken = (userId, tokenVersion, role = 'USER') =>
-  jwt.sign({ sub: userId, tokenVersion, role }, env.jwtSecret, { expiresIn: env.jwtExpiresIn })
+  jwt.sign({ sub: userId, tokenVersion, role }, env.jwtSecret, {
+    algorithm: 'HS256',
+    audience: env.jwtAudience,
+    expiresIn: env.jwtExpiresIn,
+    issuer: env.jwtIssuer,
+  })
 
 const publicUser = (user) => ({
   id: user.id,

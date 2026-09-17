@@ -326,7 +326,7 @@ Create a `.env` file in the project root:
 ```env
 PORT=3000
 NODE_ENV=development
-CLIENT_ORIGINS=http://localhost:5173
+CLIENT_ORIGINS=http://localhost:5173,http://localhost:5174
 
 # Database Connection
 DATABASE_URL="mysql://root:password@localhost:3306/banteay_digital"
@@ -364,8 +364,8 @@ npm run prisma:studio
 # Development mode with hot-reloading
 npm run dev
 
-# Production start
-npm run start
+# Production start (generates Prisma Client and applies committed migrations)
+npm run start:production
 ```
 
 The backend will start at `http://localhost:3000`.

@@ -1,10 +1,11 @@
 import { getUserById, loginUser, registerUser, revokeUserTokens, updateUserProfile } from '../services/auth.service.js'
 import asyncHandler from '../utils/async-handler.js'
 import { publicUser, signToken, tokenClearCookieOptions, tokenCookieOptions } from '../utils/auth.js'
+import env from '../config/env.js'
 
 const sendAuthenticatedUser = (response, statusCode, user) => {
   const token = signToken(user.id, user.tokenVersion, user.role)
-  response.status(statusCode).cookie('token', token, tokenCookieOptions).json({
+  response.status(statusCode).cookie(env.authCookieName, token, tokenCookieOptions).json({
     user: publicUser(user),
   })
 }
@@ -27,7 +28,7 @@ const me = asyncHandler(async (request, response) => {
 const logout = asyncHandler(async (request, response) => {
   await revokeUserTokens(request.auth.userId)
   response
-    .clearCookie('token', tokenClearCookieOptions)
+    .clearCookie(env.authCookieName, tokenClearCookieOptions)
     .status(200)
     .json({ message: 'Logged out successfully' })
 })

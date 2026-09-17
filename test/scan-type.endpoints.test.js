@@ -24,7 +24,10 @@ test('type-specific scan endpoints accept text, URL, and image input', async (t)
   t.after(() => setScanRepositoryForTests())
   setAiRetrieverForTests(async () => ({ matches: [] }))
   t.after(() => setAiRetrieverForTests())
-  setAiAnalyzerForTests(async () => ({ assessment: 'SUSPICIOUS', summary: 'Suspicious input.', recommendedActions: ['Do not interact with it.'] }))
+  setAiAnalyzerForTests(async () => ({
+    riskLevel: 'HIGH', confidenceScore: 0.9, assessment: 'SUSPICIOUS', evidenceSufficiency: 'SUFFICIENT',
+    riskSignals: [], summary: 'Suspicious input.', recommendedActions: ['Do not interact with it.'],
+  }))
   t.after(() => setAiAnalyzerForTests())
   setOcrExtractorForTests(async () => ({ text: 'Send your OTP now', languages: 'eng', character_count: 17 }))
   t.after(() => setOcrExtractorForTests())

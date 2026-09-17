@@ -1,7 +1,6 @@
 import express from 'express'
 import cors from 'cors'
 import cookieParser from 'cookie-parser'
-import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import env from './config/env.js'
 import authRoutes from './routes/auth.routes.js'
@@ -15,9 +14,11 @@ import publicProfileRoutes from './routes/public-profile.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 import asyncHandler from './utils/async-handler.js'
 import { getAiServiceHealth } from './services/ai-service.client.js'
+import { corsOrigin, enforceTrustedBrowserOrigin, setSecurityHeaders } from './middleware/request-security.middleware.js'
+import { createRateLimiter } from './middleware/rate-limit.middleware.js'
 
 const swaggerSpecPath = fileURLToPath(new URL('../swagger.yaml', import.meta.url))
-const uploadsPath = path.resolve(process.cwd(), 'uploads')
+const dependencyHealthRateLimiter = createRateLimiter({ windowMs: 60_000, max: 30 })
 
 const swaggerUiPage = `<!doctype html>
 <html lang="en">
@@ -171,10 +172,13 @@ const swaggerUiPage = `<!doctype html>
 </html>`
 
 function configureMiddleware(app) {
-  app.use(cors({ origin: env.clientOrigins, credentials: true }))
-  app.use(express.json())
+  app.disable('x-powered-by')
+  app.set('trust proxy', env.trustProxy)
+  app.use(setSecurityHeaders)
+  app.use(cors({ origin: corsOrigin, credentials: true }))
+  app.use(express.json({ limit: '100kb' }))
   app.use(cookieParser())
-  app.use('/uploads', express.static(uploadsPath))
+  app.use(enforceTrustedBrowserOrigin)
 }
 
 function registerDocumentationRoutes(app) {
@@ -182,18 +186,23 @@ function registerDocumentationRoutes(app) {
     response.status(200).json({ status: 'ok' })
   })
 
-  app.get('/api/health/ai-service', asyncHandler(async (_request, response) => {
+  app.get('/api/health/ai-service', dependencyHealthRateLimiter, asyncHandler(async (_request, response) => {
     const aiService = await getAiServiceHealth()
     response.status(200).json({ status: 'ok', aiService })
   }))
 
-  app.get('/swagger.yaml', (_request, response) => {
-    response.type('application/yaml').sendFile(swaggerSpecPath)
-  })
+  if (env.enableApiDocs) {
+    app.get('/swagger.yaml', (_request, response) => {
+      response.removeHeader('Content-Security-Policy')
+      response.type('application/yaml').sendFile(swaggerSpecPath)
+    })
 
-  app.get(['/api-doc', '/api-docs'], (_request, response) => {
-    response.type('html').send(swaggerUiPage)
-  })
+    app.get(['/api-doc', '/api-docs'], (_request, response) => {
+      // Development-only docs currently load Swagger assets from its CDN.
+      response.removeHeader('Content-Security-Policy')
+      response.type('html').send(swaggerUiPage)
+    })
+  }
 }
 
 function registerApiRoutes(app) {

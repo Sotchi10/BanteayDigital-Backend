@@ -4,7 +4,7 @@ const postIdParamSchema = z.object({ id: z.string().trim().min(1, 'Post ID is re
 const commentIdParamSchema = z.object({ id: z.string().trim().min(1, 'Comment ID is required') })
 
 const listPostsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 

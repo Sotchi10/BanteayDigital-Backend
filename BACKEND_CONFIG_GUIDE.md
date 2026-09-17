@@ -21,7 +21,7 @@ Create `backend/.env` from `backend/.env.example`:
 ```env
 NODE_ENV=development
 PORT=3000
-CLIENT_ORIGINS=http://localhost:5173
+CLIENT_ORIGINS=http://localhost:5173,http://localhost:5174
 
 # Use a long random value. It is required when NODE_ENV=production.
 JWT_SECRET=replace-with-a-long-random-secret
@@ -38,12 +38,16 @@ AI_SERVICE_URL=http://localhost:8000
 | --- | --- | --- | --- |
 | `NODE_ENV` | No | `development` | Set to `production` when deployed. |
 | `PORT` | No | `3000` | Backend listening port. |
-| `CLIENT_ORIGINS` | No | `http://localhost:5173` | Comma-separated frontend origins allowed by CORS. |
+| `CLIENT_ORIGINS` | Yes in production | Both local frontends | Comma-separated exact frontend origins allowed by CORS. |
 | `JWT_SECRET` | Yes in production | Development-only fallback | Must be unique, random, and kept secret. |
 | `JWT_EXPIRES_IN` | No | `7d` | JWT lifetime accepted by `jsonwebtoken`. |
 | `DATABASE_URL` | Yes | None | Prisma/MySQL connection URL. |
 | `AI_SERVICE_URL` | No | None | AI-service base URL used for optional retrieval and analysis. Deterministic TEXT scanning continues if it is unavailable. |
 | `AI_SERVICE_API_KEY` | No | None | Shared key sent to the AI service as `X-AI-Service-Key` when configured. |
+
+In production, every `CLIENT_ORIGINS` entry must be an exact HTTPS origin. Include both deployed clients, for example `https://app.example.com,https://admin.example.com`; paths, wildcards, and embedded credentials are rejected. Cross-domain cookies use `Secure`, `HttpOnly`, `SameSite=None`, and a `__Host-` cookie name. Unsafe cookie-authenticated browser requests are also checked against this origin list to prevent CSRF.
+
+`JWT_SECRET`, `GUEST_QUOTA_HASH_SECRET`, and `AI_SERVICE_API_KEY` must each be at least 32 characters in production. Set `TRUST_PROXY` to the exact reverse-proxy hop count (commonly `1`) only when the API is behind that proxy. Production API documentation is disabled unless `ENABLE_API_DOCS=true` is deliberately set.
 
 `VITE_BACKEND_URL` belongs in the frontend environment, not the backend configuration.
 
@@ -69,6 +73,8 @@ npm run prisma:seed:scam-cases
 npm run dev
 ```
 
+For production, add `sslaccept=strict` to `DATABASE_URL` and use `npm run db:prepare` (Prisma generation plus `prisma migrate deploy`) or `npm run start:production`. If the database CA is not already trusted, add URL-encoded `sslcert=<path>` alongside `sslaccept=strict`; both Prisma Migrate and the runtime adapter use that setting. Use `prisma:push` only for disposable local databases.
+
 Use `npm run prisma:push` only for throwaway local schema experiments. Use migrations for shared or production databases. The current Prisma runtime uses `@prisma/adapter-mariadb` as its TCP driver; despite the package name, it supports MySQL and is required by the existing client setup. Keep the configured URL in `mysql://` format.
 
 ## API and verification
@@ -93,7 +99,7 @@ Qdrant is the only service you currently run in Docker. No Compose file is requi
 docker volume create qdrant_storage
 
 # Create and start the Qdrant container.
-docker run -d --name banteay-qdrant --restart unless-stopped -p 6333:6333 -p 6334:6334 -v qdrant_storage:/qdrant/storage qdrant/qdrant:latest
+docker run -d --name banteay-qdrant --restart unless-stopped -p 127.0.0.1:6333:6333 -v qdrant_storage:/qdrant/storage -e QDRANT__SERVICE__API_KEY=<strong-random-key> qdrant/qdrant:<pinned-version>
 ```
 
 Do not run the create command again if your existing Qdrant container is already working; Docker will reject a duplicate container name. Inspect and verify the existing container instead:
@@ -120,3 +126,22 @@ Set QDRANT_URL, embedding-model settings, and LLM credentials in `ai-service/.en
 - Store the database URL and secrets outside source control.
 - Back up MySQL and the Qdrant storage volume before migrations or upgrades.
 - Run migrations once per release and keep MySQL/Qdrant private to the application network.
+- Enable Qdrant TLS whenever its API key crosses anything other than a private, isolated container network.
+
+## Backend container
+
+```powershell
+docker build -t banteay-backend .
+docker run --rm -p 3000:3000 `
+  -e NODE_ENV=production `
+  -e CLIENT_ORIGINS=https://app.example.com,https://admin.example.com `
+  -e TRUST_PROXY=1 `
+  -e DATABASE_URL=<mysql-url-with-sslaccept-strict> `
+  -e JWT_SECRET=<32-plus-character-secret> `
+  -e GUEST_QUOTA_HASH_SECRET=<different-32-plus-character-secret> `
+  -e AI_SERVICE_URL=http://banteay-ai:8000 `
+  -e AI_SERVICE_API_KEY=<shared-32-plus-character-key> `
+  banteay-backend
+```
+
+The image runs as the unprivileged `node` user. Its production start command generates Prisma Client, applies committed migrations with `prisma migrate deploy`, and then starts the API.

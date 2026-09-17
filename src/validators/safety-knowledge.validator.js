@@ -39,7 +39,7 @@ const publishSafetyKnowledgeSchema = z.object({ isPublished: z.boolean() })
 const listSafetyKnowledgeQuerySchema = z.object({
   category: z.string().trim().min(1).max(100).optional(),
   q: z.string().trim().min(1).max(100).optional(),
-  page: z.coerce.number().int().min(1).default(1),
+  page: z.coerce.number().int().min(1).max(1000).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(20),
 })
 

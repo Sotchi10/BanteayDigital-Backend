@@ -65,6 +65,14 @@ components:
           enum: [NO_STRONG_WARNING_SIGNS, INSUFFICIENT_EVIDENCE, CAUTION, SUSPICIOUS, STRONG_SCAM_INDICATORS, UNABLE_TO_ASSESS]
         score: { type: integer, minimum: 0 }
         analysisSummary: { type: string, nullable: true }
+        analysis:
+          type: object
+          properties:
+            source: { type: string }
+            summary: { type: string, nullable: true, description: Plain-language explanation of the risk classification. }
+            riskLevel: { type: string, enum: [LOW, MEDIUM, HIGH, CRITICAL], nullable: true }
+            confidenceScore: { type: number, minimum: 0, maximum: 1, nullable: true, description: AI confidence in its independent risk classification; not Qdrant similarity or scam probability. }
+            recommendedActions: { type: array, minItems: 1, maxItems: 3, items: { type: string } }
         matchedScamCases: { type: array, items: { type: object } }
         recommendations: { type: array, items: { type: string } }
         createdAt: { type: string, format: date-time }

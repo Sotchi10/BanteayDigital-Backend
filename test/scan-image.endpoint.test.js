@@ -47,7 +47,9 @@ const configureImageScanDependencies = (t) => {
   })
   t.after(() => setAiRetrieverForTests())
   setAiAnalyzerForTests(async () => ({
-    assessment: 'SUSPICIOUS', summary: 'The image text requests an OTP.', recommendedActions: ['Do not share your OTP.'],
+    riskLevel: 'CRITICAL', confidenceScore: 0.98, assessment: 'SUSPICIOUS',
+    evidenceSufficiency: 'SUFFICIENT', riskSignals: [],
+    summary: 'The image text requests an OTP.', recommendedActions: ['Do not share your OTP.'],
   }))
   t.after(() => setAiAnalyzerForTests())
 }
@@ -78,7 +80,7 @@ test('POST /api/v1/scans analyzes an IMAGE through the text scan flow', async (t
   assert.match(body.scan.id, /^[0-9a-f-]{36}$/)
   assert.equal(body.scan.inputType, 'IMAGE')
   assert.equal(body.scan.rawInput, 'Send your OTP now')
-  assert.equal(body.scan.analysis.source, 'GEMINI_SIMPLE')
+  assert.equal(body.scan.analysis.source, 'GEMINI_INDEPENDENT')
 })
 
 test('POST /api/v1/scans falls back to local English OCR when AI OCR is unavailable', async (t) => {

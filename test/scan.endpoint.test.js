@@ -29,6 +29,7 @@ test('POST /api/v1/scans validates, scans, saves, and returns a result', async (
   setAiAnalyzerForTests(async ({ language }) => {
     analyzerLanguage = language
     return {
+      riskLevel: 'CRITICAL', confidenceScore: 0.94,
       assessment: 'SUSPICIOUS',
       summary: 'The message requests an OTP and resembles a retrieved case.',
       reasons: ['It requests an OTP.'],
@@ -67,7 +68,9 @@ test('POST /api/v1/scans validates, scans, saves, and returns a result', async (
     { id: 'case-1', score: 0.98, payload: { kind: 'scam_case', title: 'OTP scam', riskLevel: 'HIGH', verified: false }, relation: 'LIKELY_RELATED', evidenceStatus: 'UNVERIFIED_REFERENCE' },
     { id: 'case-2', score: 0.70, payload: { kind: 'scam_case', title: 'Prize scam', riskLevel: 'HIGH', verified: false }, relation: 'CONTEXTUAL', evidenceStatus: 'UNVERIFIED_REFERENCE' },
   ])
-  assert.equal(body.scan.analysis.source, 'GEMINI_SIMPLE')
+  assert.equal(body.scan.analysis.source, 'GEMINI_INDEPENDENT')
+  assert.equal(body.scan.analysis.riskLevel, 'CRITICAL')
+  assert.equal(body.scan.analysis.confidenceScore, 0.94)
   assert.deepEqual(body.scan.analysis.citedCaseIds, [])
 })
 
@@ -138,6 +141,7 @@ test('TEXT scanning calls AI even when rules and retrieval find no evidence', as
     assert.equal(retrievalStatus, 'AVAILABLE')
     assert.equal(topSimilarity, null)
     return {
+      riskLevel: 'MEDIUM', confidenceScore: 0.82,
       assessment: 'CAUTION', evidenceSufficiency: 'SUFFICIENT',
       riskSignals: [{ category: 'SOCIAL_ENGINEERING', severity: 'CAUTION', evidence: 'this offer', message: 'The offer needs independent verification.' }],
       summary: 'Verify this offer before responding.', recommendedActions: ['Verify the sender.'],
@@ -150,7 +154,9 @@ test('TEXT scanning calls AI even when rules and retrieval find no evidence', as
 
   assert.equal(analyzerCalls, 1)
   assert.equal(scan.assessment, 'CAUTION')
-  assert.equal(scan.analysis.source, 'GEMINI_SIMPLE')
+  assert.equal(scan.analysis.source, 'GEMINI_INDEPENDENT')
+  assert.equal(scan.analysis.riskLevel, 'MEDIUM')
+  assert.equal(scan.analysis.confidenceScore, 0.82)
 })
 
 test('validated critical AI signals protect novel scams from a low-risk verdict', async (t) => {
@@ -166,6 +172,7 @@ test('validated critical AI signals protect novel scams from a low-risk verdict'
   setAiRetrieverForTests(async () => ({ matches: [] }))
   t.after(() => setAiRetrieverForTests())
   setAiAnalyzerForTests(async () => ({
+    riskLevel: 'CRITICAL', confidenceScore: 0.91,
     assessment: 'NO_STRONG_WARNING_SIGNS',
     evidenceSufficiency: 'SUFFICIENT',
     riskSignals: [{
@@ -204,6 +211,7 @@ test('unsupported AI signal quotes cannot raise risk and ambiguity cannot become
   setAiRetrieverForTests(async () => ({ matches: [] }))
   t.after(() => setAiRetrieverForTests())
   setAiAnalyzerForTests(async () => ({
+    riskLevel: 'LOW', confidenceScore: 0.88,
     assessment: 'NO_STRONG_WARNING_SIGNS',
     evidenceSufficiency: 'AMBIGUOUS',
     riskSignals: [{
@@ -245,7 +253,7 @@ test('URL reputation evidence reaches AI and cannot be downgraded', async (t) =>
   t.after(() => setUrlReputationProviderForTests())
   setAiAnalyzerForTests(async (request) => {
     assert.deepEqual(request.urlEvidence, evidence)
-    return { assessment: 'NO_STRONG_WARNING_SIGNS', summary: 'No warning signs.', recommendedActions: ['Proceed carefully.'] }
+    return { riskLevel: 'LOW', confidenceScore: 0.9, assessment: 'NO_STRONG_WARNING_SIGNS', evidenceSufficiency: 'SUFFICIENT', riskSignals: [], summary: 'No warning signs.', recommendedActions: ['Proceed carefully.'] }
   })
   t.after(() => setAiAnalyzerForTests())
 
@@ -254,6 +262,46 @@ test('URL reputation evidence reaches AI and cannot be downgraded', async (t) =>
 
   assert.equal(scan.assessment, 'STRONG_SCAM_INDICATORS')
   assert.equal(scan.aiRetrieval.urlReputation.status, 'AVAILABLE')
+})
+
+test('no Qdrant match uses the independent AI risk level and confidence', async (t) => {
+  setScanRepositoryForTests({
+    scan: {
+      create: async ({ data, select }) => {
+        const record = { id: 'scan-independent', createdAt: new Date(), scamCaseMatches: [], ...data }
+        return Object.fromEntries(Object.keys(select).map((key) => [key, key === 'scamCaseMatches' ? [] : record[key]]))
+      },
+    },
+  })
+  t.after(() => setScanRepositoryForTests())
+  setAiRetrieverForTests(async () => ({ matches: [] }))
+  t.after(() => setAiRetrieverForTests())
+  setAiAnalyzerForTests(async ({ retrievedCases, topSimilarity }) => {
+    assert.deepEqual(retrievedCases, [])
+    assert.equal(topSimilarity, null)
+    return {
+      riskLevel: 'HIGH', confidenceScore: 0.87,
+      assessment: 'INSUFFICIENT_EVIDENCE', evidenceSufficiency: 'SUFFICIENT',
+      riskSignals: [],
+      summary: 'This request could compromise the account even though it does not match a known case.',
+      recommendedActions: ['Do not provide the private phrase.', 'Verify the request through the official service.'],
+    }
+  })
+  t.after(() => setAiAnalyzerForTests())
+
+  const { createScan } = await import('../src/services/scan.service.js')
+  const scan = await createScan({
+    userId: 'user-1', type: 'TEXT',
+    value: 'Complete the migration by sending your private activation phrase to this chat.',
+  })
+
+  assert.equal(scan.assessment, 'SUSPICIOUS')
+  assert.equal(scan.analysis.riskLevel, 'HIGH')
+  assert.equal(scan.analysis.confidenceScore, 0.87)
+  assert.equal(scan.analysis.source, 'GEMINI_INDEPENDENT')
+  assert.match(scan.analysis.summary, /does not match a known case/)
+  assert.deepEqual(scan.analysis.reasons, [scan.analysis.summary])
+  assert.equal(scan.analysis.recommendedActions.length, 2)
 })
 
 test('URL reputation evidence remains a safety floor when AI is unavailable', async (t) => {

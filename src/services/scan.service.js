@@ -14,7 +14,8 @@ let urlReputationProvider = getUrlReputation
 const scanSelect = {
   id: true, userId: true, inputType: true, imageStoragePath: true, imageMimeType: true, imageSize: true, rawInput: true, normalizedInput: true,
   findings: true, assessment: true, deterministicAssessment: true, score: true,
-  analysisSummary: true, analysisReasons: true, analysisSignals: true, evidenceSufficiency: true, recommendedActions: true, analysisSource: true,
+  analysisSummary: true, analysisReasons: true, analysisSignals: true, evidenceSufficiency: true,
+  analysisRiskLevel: true, analysisConfidence: true, recommendedActions: true, analysisSource: true,
   citedCaseIds: true, retrievalEvidence: true, createdAt: true,
   reportStatus: true,
   scamCaseMatches: { select: { similarity: true, matchReason: true, scamCase: { select: { id: true, title: true, scamType: true, riskLevel: true } } } },
@@ -47,6 +48,21 @@ const assessmentRank = {
   SUSPICIOUS: 2, STRONG_SCAM_INDICATORS: 3, UNABLE_TO_ASSESS: 0,
 }
 
+const assessmentForRiskLevel = {
+  LOW: 'NO_STRONG_WARNING_SIGNS', MEDIUM: 'CAUTION',
+  HIGH: 'SUSPICIOUS', CRITICAL: 'STRONG_SCAM_INDICATORS',
+}
+
+const independentAiConfidenceThreshold = 0.7
+
+const riskLevelForAssessment = (assessment, proposedRiskLevel) => {
+  if (assessment === 'STRONG_SCAM_INDICATORS') return proposedRiskLevel === 'CRITICAL' ? 'CRITICAL' : 'HIGH'
+  if (assessment === 'SUSPICIOUS') return ['HIGH', 'CRITICAL'].includes(proposedRiskLevel) ? proposedRiskLevel : 'HIGH'
+  if (assessment === 'CAUTION') return 'MEDIUM'
+  if (assessment === 'NO_STRONG_WARNING_SIGNS') return 'LOW'
+  return null
+}
+
 const atLeastDeterministicAssessment = (deterministic, proposed) => (
   (assessmentRank[proposed] ?? 0) >= (assessmentRank[deterministic] ?? 0) ? proposed : deterministic
 )
@@ -77,7 +93,7 @@ const deterministicAnalysis = ({ assessment, findings, language = 'en' }) => ({
   citedCaseIds: [], source: 'DETERMINISTIC_FALLBACK',
 })
 
-const serializeScan = ({ scamCaseMatches, analysisReasons, analysisSignals, evidenceSufficiency, recommendedActions, analysisSource, citedCaseIds, retrievalEvidence, ...scan }, aiMatches = []) => ({
+const serializeScan = ({ scamCaseMatches, analysisReasons, analysisSignals, evidenceSufficiency, analysisRiskLevel, analysisConfidence, recommendedActions, analysisSource, citedCaseIds, retrievalEvidence, ...scan }, aiMatches = []) => ({
   ...scan,
   matchedScamCases: scamCaseMatches.map(({ scamCase, similarity, matchReason }) => ({ ...scamCase, similarity, matchReason })),
   aiMatches,
@@ -85,6 +101,8 @@ const serializeScan = ({ scamCaseMatches, analysisReasons, analysisSignals, evid
   analysis: {
     source: analysisSource || 'LEGACY', summary: scan.analysisSummary, reasons: analysisReasons || [],
     riskSignals: analysisSignals || [], evidenceSufficiency: evidenceSufficiency || 'INSUFFICIENT',
+    riskLevel: analysisRiskLevel || riskLevelForAssessment(scan.assessment),
+    confidenceScore: Number.isFinite(analysisConfidence) ? analysisConfidence : null,
     recommendedActions: recommendedActions || [], citedCaseIds: citedCaseIds || [],
   },
   recommendations: recommendedActions || [],
@@ -187,6 +205,26 @@ const groundedAiAssessment = (analysis, riskSignals) => {
   return analysis.assessment
 }
 
+const independentAiAssessment = (analysis) => {
+  const confidence = Number(analysis.confidenceScore)
+  if (!Number.isFinite(confidence) || confidence < independentAiConfidenceThreshold) return 'INSUFFICIENT_EVIDENCE'
+
+  const assessment = assessmentForRiskLevel[analysis.riskLevel]
+  if (!assessment) return 'INSUFFICIENT_EVIDENCE'
+  if (assessment === 'NO_STRONG_WARNING_SIGNS') {
+    return analysis.evidenceSufficiency === 'SUFFICIENT' ? assessment : 'INSUFFICIENT_EVIDENCE'
+  }
+  // With no retrieval context, a sufficiently confident model classification
+  // is the fallback verdict. Valid quoted signals remain useful explanation
+  // and an independent safety floor, but are not a second retrieval gate.
+  return assessment
+}
+
+const fallbackRecommendedActions = (language) => [
+  fallbackText(language, 'Do not share passwords, one-time codes, or banking details.', khmerFallback.doNotShare),
+  fallbackText(language, 'Verify the sender or organization through a contact method you find independently.', khmerFallback.verifyIndependently),
+]
+
 const createAnalysis = async ({ type, value, findings, matches, retrievalStatus, deterministicAssessment, language = 'en', urlEvidence }) => {
   try {
     const retrievedCases = matches
@@ -210,25 +248,39 @@ const createAnalysis = async ({ type, value, findings, matches, retrievalStatus,
     const evidenceSufficiency = ['SUFFICIENT', 'AMBIGUOUS', 'INSUFFICIENT'].includes(analysis.evidenceSufficiency)
       ? analysis.evidenceSufficiency
       : 'INSUFFICIENT'
+    const confidenceScore = Number(analysis.confidenceScore)
+    const normalizedConfidence = Number.isFinite(confidenceScore) && confidenceScore >= 0 && confidenceScore <= 1
+      ? confidenceScore
+      : null
+    const hasRetrievedContext = retrievedCases.length > 0
+    const aiAssessment = hasRetrievedContext
+      ? groundedAiAssessment({ ...analysis, evidenceSufficiency }, riskSignals)
+      : independentAiAssessment({ ...analysis, confidenceScore: normalizedConfidence, evidenceSufficiency })
+    const assessment = atLeastDeterministicAssessment(
+      atLeastDeterministicAssessment(
+        atLeastDeterministicAssessment(deterministicAssessment, urlEvidenceAssessment(urlEvidence)),
+        riskSignalAssessment(riskSignals),
+      ),
+      aiAssessment,
+    )
+    const recommendedActions = Array.isArray(analysis.recommendedActions)
+      ? analysis.recommendedActions.filter((action) => typeof action === 'string' && action.trim()).slice(0, 3)
+      : []
     // Keep the AI service contract small for the testing phase. The backend
     // still fills its existing persistence fields with safe defaults.
     return {
       // AI enriches the explanation; it must not downgrade a concrete,
       // explainable deterministic safety warning.
-      assessment: atLeastDeterministicAssessment(
-        atLeastDeterministicAssessment(
-          atLeastDeterministicAssessment(deterministicAssessment, urlEvidenceAssessment(urlEvidence)),
-          riskSignalAssessment(riskSignals),
-        ),
-        groundedAiAssessment({ ...analysis, evidenceSufficiency }, riskSignals),
-      ),
+      assessment,
       summary: analysis.summary,
       reasons: riskSignals.length ? riskSignals.map((signal) => signal.message) : [analysis.summary],
       riskSignals,
       evidenceSufficiency,
-      recommendedActions: Array.isArray(analysis.recommendedActions) ? analysis.recommendedActions : [],
+      riskLevel: riskLevelForAssessment(assessment, analysis.riskLevel),
+      confidenceScore: normalizedConfidence,
+      recommendedActions: recommendedActions.length ? recommendedActions : fallbackRecommendedActions(language),
       citedCaseIds: [],
-      source: 'GEMINI_SIMPLE',
+      source: hasRetrievedContext ? 'GEMINI_GROUNDED' : 'GEMINI_INDEPENDENT',
     }
   } catch {
     // Do not erase a concrete deterministic warning merely because the
@@ -266,6 +318,7 @@ const createScan = async ({ id, userId, type, value, inputType = type, imageMeta
       findings: deterministic.findings, assessment: analysis.assessment, deterministicAssessment: deterministic.deterministicAssessment,
       score: deterministic.score, analysisSummary: analysis.summary, analysisReasons: analysis.reasons,
       analysisSignals: analysis.riskSignals, evidenceSufficiency: analysis.evidenceSufficiency,
+      analysisRiskLevel: analysis.riskLevel, analysisConfidence: analysis.confidenceScore,
       recommendedActions: analysis.recommendedActions, analysisSource: analysis.source,
       citedCaseIds: analysis.citedCaseIds, retrievalEvidence,
     },

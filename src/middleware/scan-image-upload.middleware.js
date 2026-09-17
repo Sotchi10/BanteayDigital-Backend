@@ -18,7 +18,14 @@ const hasValidImageSignature = (file) => {
 
 const uploader = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: MAX_SCAN_IMAGE_BYTES, files: 1 },
+  limits: {
+    fileSize: MAX_SCAN_IMAGE_BYTES,
+    files: 1,
+    fields: 5,
+    parts: 6,
+    fieldNameSize: 100,
+    fieldSize: 10_000,
+  },
   fileFilter: (_request, file, callback) => {
     if (!supportedImageTypes.has(file.mimetype)) {
       callback(new ApiError(415, 'Image must be a PNG, JPG, JPEG, or WEBP file'))

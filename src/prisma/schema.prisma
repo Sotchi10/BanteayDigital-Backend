@@ -144,6 +144,8 @@ model Scan {
   analysisReasons         Json?
   analysisSignals         Json?
   evidenceSufficiency     String?          @db.VarChar(20)
+  analysisRiskLevel       RiskLevel?
+  analysisConfidence      Float?
   recommendedActions      Json?
   analysisSource          String?          @db.VarChar(50)
   citedCaseIds            Json?

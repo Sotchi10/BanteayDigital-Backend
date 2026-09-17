@@ -4,6 +4,7 @@ import { extractImageText } from './ai-service.client.js'
 import { createScan } from './scan.service.js'
 import { removeScanImage, uploadScanImage } from './scan-image-storage.service.js'
 import { extractImageTextLocally } from './local-ocr.service.js'
+import env from '../config/env.js'
 
 let ocrExtractor = extractImageText
 let localOcrExtractor = extractImageTextLocally
@@ -40,7 +41,7 @@ const createImageScan = async ({ userId, image, language }) => {
     try {
       extraction = await ocrExtractor(image)
     } catch (error) {
-      if (error?.statusCode !== 503) throw error
+      if (error?.statusCode !== 503 || !env.enableLocalOcr) throw error
       extraction = await localOcrExtractor(image)
     }
     const text = extraction.text?.trim() || ''

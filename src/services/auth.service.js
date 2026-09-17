@@ -3,6 +3,9 @@ import prisma from '../config/database.js'
 import ApiError from '../utils/api-error.js'
 
 const PASSWORD_SALT_ROUNDS = 12
+// A valid bcrypt hash used to keep failed-login work comparable when the
+// supplied account does not exist. It is never associated with a real user.
+const DUMMY_PASSWORD_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEe.5hQ0tQ0CNS1L2.s.6QIML.n7RtA.0wK'
 
 const registerUser = async ({ email, password, name, phoneNumber, age, avatarUrl }) => {
   const passwordHash = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS)
@@ -30,7 +33,7 @@ const loginUser = async ({ email, phoneNumber, password }) => {
   const user = await prisma.user.findFirst({
     where: { OR: contactFilters },
   })
-  const passwordMatches = user && await bcrypt.compare(password, user.passwordHash)
+  const passwordMatches = await bcrypt.compare(password, user?.passwordHash || DUMMY_PASSWORD_HASH)
 
   if (!passwordMatches) {
     throw new ApiError(401, 'Invalid email, phone number, or password')

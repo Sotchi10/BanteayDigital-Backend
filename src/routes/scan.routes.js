@@ -33,6 +33,11 @@ const limitMultipartUploads = (request, response, next) => (
     ? uploadRateLimiter(request, response, next)
     : next()
 )
+const requireMultipartImage = (request, _response, next) => (
+  request.is('multipart/form-data')
+    ? next()
+    : next(new ApiError(415, 'Image scans require multipart/form-data'))
+)
 
 // The original endpoint accepts all scan inputs at one address.  Keep it for
 // existing clients, while also exposing stable, type-specific endpoints for
@@ -52,7 +57,7 @@ const textOrUrlScanMiddleware = [optionalAuth, aiRateLimiter]
 router.post('/', ...scanRequestMiddleware, validateScanRequest, enforceScanQuota, create)
 router.post('/text', ...textOrUrlScanMiddleware, setScanInputType('TEXT'), validate(scanSchema), enforceScanQuota, create)
 router.post('/url', ...textOrUrlScanMiddleware, setScanInputType('URL'), validate(scanSchema), enforceScanQuota, create)
-router.post('/image', ...scanRequestMiddleware, setScanInputType('IMAGE'), validate(imageScanSchema), enforceScanQuota, create)
+router.post('/image', requireAuth, requireMultipartImage, limitMultipartUploads, aiRateLimiter, uploadScanImageIfMultipart, setScanInputType('IMAGE'), validate(imageScanSchema), enforceScanQuota, create)
 router.get('/', requireAuth, validate(listScansQuerySchema, 'query'), list)
 router.get('/:id', requireAuth, validate(scanIdParamSchema, 'params'), getById)
 router.delete('/:id', requireAuth, validate(scanIdParamSchema, 'params'), remove)
