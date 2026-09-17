@@ -4,6 +4,9 @@ ENV NODE_ENV=production \
     PORT=3000
 
 WORKDIR /app
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl \
+    && rm -rf /var/lib/apt/lists/*
 COPY package.json package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 

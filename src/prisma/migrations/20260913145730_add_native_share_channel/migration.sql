@@ -1,2 +1,2 @@
 -- AlterTable
-ALTER TABLE `postshare` MODIFY `channel` ENUM('NATIVE', 'TELEGRAM', 'COPY_LINK') NOT NULL;
+ALTER TABLE `PostShare` MODIFY `channel` ENUM('NATIVE', 'TELEGRAM', 'COPY_LINK') NOT NULL;

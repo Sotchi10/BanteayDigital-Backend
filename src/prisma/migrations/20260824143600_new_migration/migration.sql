@@ -7,37 +7,37 @@
 
 */
 -- DropForeignKey
-ALTER TABLE `comment` DROP FOREIGN KEY `Comment_postId_fkey`;
+ALTER TABLE `Comment` DROP FOREIGN KEY `Comment_postId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `like` DROP FOREIGN KEY `Like_postId_fkey`;
+ALTER TABLE `Like` DROP FOREIGN KEY `Like_postId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `like` DROP FOREIGN KEY `Like_userId_fkey`;
+ALTER TABLE `Like` DROP FOREIGN KEY `Like_userId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `share` DROP FOREIGN KEY `Share_postId_fkey`;
+ALTER TABLE `Share` DROP FOREIGN KEY `Share_postId_fkey`;
 
 -- DropForeignKey
-ALTER TABLE `share` DROP FOREIGN KEY `Share_userId_fkey`;
+ALTER TABLE `Share` DROP FOREIGN KEY `Share_userId_fkey`;
 
 -- AlterTable
-ALTER TABLE `comment` ADD COLUMN `isDeleted` BOOLEAN NOT NULL DEFAULT false,
+ALTER TABLE `Comment` ADD COLUMN `isDeleted` BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN `parentId` VARCHAR(191) NULL;
 
 -- AlterTable
-ALTER TABLE `user` ADD COLUMN `avatarUrl` VARCHAR(512) NULL,
+ALTER TABLE `User` ADD COLUMN `avatarUrl` VARCHAR(512) NULL,
     ADD COLUMN `role` ENUM('USER', 'MODERATOR', 'ADMIN') NOT NULL DEFAULT 'USER',
     ADD COLUMN `status` ENUM('ACTIVE', 'SUSPENDED', 'BANNED') NOT NULL DEFAULT 'ACTIVE';
 
 -- DropTable
-DROP TABLE `like`;
+DROP TABLE `Like`;
 
 -- DropTable
-DROP TABLE `post`;
+DROP TABLE `Post`;
 
 -- DropTable
-DROP TABLE `share`;
+DROP TABLE `Share`;
 
 -- CreateTable
 CREATE TABLE `Report` (
@@ -302,4 +302,4 @@ ALTER TABLE `ScanFeedback` ADD CONSTRAINT `ScanFeedback_scanId_fkey` FOREIGN KEY
 ALTER TABLE `ScanFeedback` ADD CONSTRAINT `ScanFeedback_userId_fkey` FOREIGN KEY (`userId`) REFERENCES `User`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- RenameIndex
-ALTER TABLE `comment` RENAME INDEX `Comment_userId_fkey` TO `Comment_userId_idx`;
+ALTER TABLE `Comment` RENAME INDEX `Comment_userId_fkey` TO `Comment_userId_idx`;

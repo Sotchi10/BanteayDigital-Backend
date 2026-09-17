@@ -1,43 +1,43 @@
 -- Replace the legacy scanner, evidence, social, and old report structures
 -- with the submission → report → community-post workflow.
-ALTER TABLE `comment` DROP FOREIGN KEY `Comment_parentId_fkey`;
-ALTER TABLE `comment` DROP FOREIGN KEY `Comment_postId_fkey`;
-ALTER TABLE `comment` DROP FOREIGN KEY `Comment_userId_fkey`;
-ALTER TABLE `communitypost` DROP FOREIGN KEY `CommunityPost_authorId_fkey`;
-ALTER TABLE `communitypost` DROP FOREIGN KEY `CommunityPost_reportId_fkey`;
-ALTER TABLE `postbookmark` DROP FOREIGN KEY `PostBookmark_postId_fkey`;
-ALTER TABLE `postbookmark` DROP FOREIGN KEY `PostBookmark_userId_fkey`;
-ALTER TABLE `postlike` DROP FOREIGN KEY `PostLike_postId_fkey`;
-ALTER TABLE `postlike` DROP FOREIGN KEY `PostLike_userId_fkey`;
-ALTER TABLE `postmedia` DROP FOREIGN KEY `PostMedia_postId_fkey`;
-ALTER TABLE `postshare` DROP FOREIGN KEY `PostShare_postId_fkey`;
-ALTER TABLE `postshare` DROP FOREIGN KEY `PostShare_userId_fkey`;
-ALTER TABLE `report` DROP FOREIGN KEY `Report_userId_fkey`;
-ALTER TABLE `reportevidence` DROP FOREIGN KEY `ReportEvidence_reportId_fkey`;
-ALTER TABLE `reportreviewlog` DROP FOREIGN KEY `ReportReviewLog_adminId_fkey`;
-ALTER TABLE `reportreviewlog` DROP FOREIGN KEY `ReportReviewLog_reportId_fkey`;
-ALTER TABLE `scamindicator` DROP FOREIGN KEY `ScamIndicator_sourceReportId_fkey`;
-ALTER TABLE `scanfeedback` DROP FOREIGN KEY `ScanFeedback_scanId_fkey`;
-ALTER TABLE `scanfeedback` DROP FOREIGN KEY `ScanFeedback_userId_fkey`;
-ALTER TABLE `scanrequest` DROP FOREIGN KEY `ScanRequest_userId_fkey`;
-ALTER TABLE `scanresult` DROP FOREIGN KEY `ScanResult_scanId_fkey`;
+ALTER TABLE `Comment` DROP FOREIGN KEY `Comment_parentId_fkey`;
+ALTER TABLE `Comment` DROP FOREIGN KEY `Comment_postId_fkey`;
+ALTER TABLE `Comment` DROP FOREIGN KEY `Comment_userId_fkey`;
+ALTER TABLE `CommunityPost` DROP FOREIGN KEY `CommunityPost_authorId_fkey`;
+ALTER TABLE `CommunityPost` DROP FOREIGN KEY `CommunityPost_reportId_fkey`;
+ALTER TABLE `PostBookmark` DROP FOREIGN KEY `PostBookmark_postId_fkey`;
+ALTER TABLE `PostBookmark` DROP FOREIGN KEY `PostBookmark_userId_fkey`;
+ALTER TABLE `PostLike` DROP FOREIGN KEY `PostLike_postId_fkey`;
+ALTER TABLE `PostLike` DROP FOREIGN KEY `PostLike_userId_fkey`;
+ALTER TABLE `PostMedia` DROP FOREIGN KEY `PostMedia_postId_fkey`;
+ALTER TABLE `PostShare` DROP FOREIGN KEY `PostShare_postId_fkey`;
+ALTER TABLE `PostShare` DROP FOREIGN KEY `PostShare_userId_fkey`;
+ALTER TABLE `Report` DROP FOREIGN KEY `Report_userId_fkey`;
+ALTER TABLE `ReportEvidence` DROP FOREIGN KEY `ReportEvidence_reportId_fkey`;
+ALTER TABLE `ReportReviewLog` DROP FOREIGN KEY `ReportReviewLog_adminId_fkey`;
+ALTER TABLE `ReportReviewLog` DROP FOREIGN KEY `ReportReviewLog_reportId_fkey`;
+ALTER TABLE `ScamIndicator` DROP FOREIGN KEY `ScamIndicator_sourceReportId_fkey`;
+ALTER TABLE `ScanFeedback` DROP FOREIGN KEY `ScanFeedback_scanId_fkey`;
+ALTER TABLE `ScanFeedback` DROP FOREIGN KEY `ScanFeedback_userId_fkey`;
+ALTER TABLE `ScanRequest` DROP FOREIGN KEY `ScanRequest_userId_fkey`;
+ALTER TABLE `ScanResult` DROP FOREIGN KEY `ScanResult_scanId_fkey`;
 
-UPDATE `user` SET `role` = 'ADMIN' WHERE `role` = 'MODERATOR';
-ALTER TABLE `user` MODIFY `role` ENUM('USER', 'ADMIN') NOT NULL DEFAULT 'USER';
+UPDATE `User` SET `role` = 'ADMIN' WHERE `role` = 'MODERATOR';
+ALTER TABLE `User` MODIFY `role` ENUM('USER', 'ADMIN') NOT NULL DEFAULT 'USER';
 
-DROP TABLE `comment`;
-DROP TABLE `communitypost`;
-DROP TABLE `postbookmark`;
-DROP TABLE `postlike`;
-DROP TABLE `postmedia`;
-DROP TABLE `postshare`;
-DROP TABLE `report`;
-DROP TABLE `reportevidence`;
-DROP TABLE `reportreviewlog`;
-DROP TABLE `scamindicator`;
-DROP TABLE `scanfeedback`;
-DROP TABLE `scanrequest`;
-DROP TABLE `scanresult`;
+DROP TABLE `Comment`;
+DROP TABLE `CommunityPost`;
+DROP TABLE `PostBookmark`;
+DROP TABLE `PostLike`;
+DROP TABLE `PostMedia`;
+DROP TABLE `PostShare`;
+DROP TABLE `Report`;
+DROP TABLE `ReportEvidence`;
+DROP TABLE `ReportReviewLog`;
+DROP TABLE `ScamIndicator`;
+DROP TABLE `ScanFeedback`;
+DROP TABLE `ScanRequest`;
+DROP TABLE `ScanResult`;
 
 CREATE TABLE `ScamSubmission` (
   `id` VARCHAR(191) NOT NULL, `userId` VARCHAR(191) NOT NULL,
