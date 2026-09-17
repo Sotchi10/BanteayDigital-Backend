@@ -18,8 +18,10 @@ if (url.protocol !== 'mysql:') {
 
 const sslAccept = url.searchParams.get('sslaccept')
 const sslCertPath = url.searchParams.get('sslcert')
-if (process.env.NODE_ENV === 'production' && sslAccept !== 'strict') {
-  throw new Error('Production DATABASE_URL must include sslaccept=strict')
+const trustsRailwayPrivateNetwork = process.env.DATABASE_TRUST_PRIVATE_NETWORK === 'true'
+  && url.hostname.endsWith('.railway.internal')
+if (process.env.NODE_ENV === 'production' && sslAccept !== 'strict' && !trustsRailwayPrivateNetwork) {
+  throw new Error('Production DATABASE_URL must use sslaccept=strict or an explicitly trusted Railway private host')
 }
 
 const ssl = sslAccept === 'strict' || sslCertPath

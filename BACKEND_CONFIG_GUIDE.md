@@ -73,7 +73,7 @@ npm run prisma:seed:scam-cases
 npm run dev
 ```
 
-For production, add `sslaccept=strict` to `DATABASE_URL` and use `npm run db:prepare` (Prisma generation plus `prisma migrate deploy`) or `npm run start:production`. If the database CA is not already trusted, add URL-encoded `sslcert=<path>` alongside `sslaccept=strict`; both Prisma Migrate and the runtime adapter use that setting. Use `prisma:push` only for disposable local databases.
+For an external production database, add `sslaccept=strict` to `DATABASE_URL` and use `npm run db:prepare` (Prisma generation plus `prisma migrate deploy`) or `npm run start:production`. If the database CA is not already trusted, add URL-encoded `sslcert=<path>` alongside `sslaccept=strict`; both Prisma Migrate and the runtime adapter use that setting. When both backend and MySQL are in the same Railway project, reference Railway's private `MYSQL_URL` and set `DATABASE_TRUST_PRIVATE_NETWORK=true`. This exception is accepted only for a `.railway.internal` host, whose traffic stays on Railway's encrypted private network. Use `prisma:push` only for disposable local databases.
 
 Use `npm run prisma:push` only for throwaway local schema experiments. Use migrations for shared or production databases. The current Prisma runtime uses `@prisma/adapter-mariadb` as its TCP driver; despite the package name, it supports MySQL and is required by the existing client setup. Keep the configured URL in `mysql://` format.
 
@@ -136,7 +136,7 @@ docker run --rm -p 3000:3000 `
   -e NODE_ENV=production `
   -e CLIENT_ORIGINS=https://app.example.com,https://admin.example.com `
   -e TRUST_PROXY=1 `
-  -e DATABASE_URL=<mysql-url-with-sslaccept-strict> `
+  -e DATABASE_URL=<external-mysql-url-with-sslaccept-strict> `
   -e JWT_SECRET=<32-plus-character-secret> `
   -e GUEST_QUOTA_HASH_SECRET=<different-32-plus-character-secret> `
   -e AI_SERVICE_URL=http://banteay-ai:8000 `
