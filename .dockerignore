@@ -4,7 +4,9 @@
 node_modules
 npm-debug.log*
 test
-data
+data/*
+!data/scam_datas.csv
+!data/detection_rules.csv
 uploads
 Weakness.md
 Development_Handbook.md

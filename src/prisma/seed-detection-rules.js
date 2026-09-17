@@ -31,9 +31,11 @@ async function main() {
   if (records.length !== 10 || records.some((record) => !record.code || !Number.isInteger(record.weight))) {
     throw new Error('detection_rules.csv must contain 10 valid rules.')
   }
-  await prisma.$transaction(records.map((record) => prisma.detectionRule.upsert({
-    where: { code: record.code }, create: record, update: record,
-  })))
+  for (const record of records) {
+    await prisma.detectionRule.upsert({
+      where: { code: record.code }, create: record, update: record,
+    })
+  }
   console.log(`Imported ${records.length} detection rules from ${csvPath}.`)
 }
 

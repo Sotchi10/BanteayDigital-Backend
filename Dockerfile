@@ -12,6 +12,7 @@ RUN npm ci --omit=dev --ignore-scripts
 
 COPY prisma.config.ts swagger.yaml ./
 COPY src ./src
+COPY data ./data
 RUN DATABASE_URL=mysql://build:build@127.0.0.1:3306/build npm run prisma:generate \
     && chown -R node:node /app
 

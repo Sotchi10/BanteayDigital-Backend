@@ -64,11 +64,13 @@ async function main() {
     throw new Error('scam_datas.csv contains an invalid ScamCase record.')
   }
 
-  await prisma.$transaction(records.map((record) => prisma.scamCase.upsert({
-    where: { id: record.id },
-    create: record,
-    update: record,
-  })))
+  for (const record of records) {
+    await prisma.scamCase.upsert({
+      where: { id: record.id },
+      create: record,
+      update: record,
+    })
+  }
 
   console.log(`Imported ${records.length} scam cases from ${csvPath}.`)
 }
