@@ -1,6 +1,13 @@
 import { z } from 'zod'
 
 const normalizePhoneNumber = (value) => value.replace(/[\s().-]/g, '')
+const acceptedEmailDomains = new Set([
+  'gmail.com',
+  'student.cadt.edu.kh',
+  'outlook.com',
+  'icloud.com',
+  'yahoo.com',
+])
 const hasValidEmailDomain = (value) => {
   const domain = value.split('@')[1] || ''
   if (domain.length > 253 || !domain.includes('.')) return false
@@ -8,8 +15,10 @@ const hasValidEmailDomain = (value) => {
   return labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
     && /^[a-z]{2,63}$/i.test(labels.at(-1))
 }
+const hasAcceptedEmailDomain = (value) => acceptedEmailDomains.has((value.split('@')[1] || '').toLowerCase())
 const emailSchema = z.string().trim().email().max(255)
   .refine(hasValidEmailDomain, 'Enter an email address with a valid domain')
+  .refine(hasAcceptedEmailDomain, 'Email must use an accepted domain: @gmail.com, @student.cadt.edu.kh, @outlook.com, @icloud.com, or @yahoo.com')
   .transform((value) => value.toLowerCase())
 const phoneNumberSchema = z.string().trim().max(30)
   .transform(normalizePhoneNumber)
