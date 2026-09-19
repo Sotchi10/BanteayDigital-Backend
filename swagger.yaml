@@ -20,6 +20,8 @@ tags:
   - name: Community Comments
   - name: Community Safety
   - name: Admin Community Safety
+  - name: Alerts
+  - name: Admin Alerts
 components:
   securitySchemes:
     bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
@@ -162,6 +164,23 @@ components:
       required: [isPublished]
       properties:
         isPublished: { type: boolean }
+    AlertInput:
+      type: object
+      required: [title, content]
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255, example: Scheduled maintenance }
+        content: { type: string, minLength: 1, maxLength: 10000, example: The platform will be unavailable briefly tonight at 11 PM. }
+    AlertPublicationInput:
+      type: object
+      required: [isPublished]
+      properties:
+        isPublished: { type: boolean }
+    AlertUpdateInput:
+      type: object
+      description: Supply a title, content, or both. Omitted properties remain unchanged.
+      properties:
+        title: { type: string, minLength: 1, maxLength: 255 }
+        content: { type: string, minLength: 1, maxLength: 10000 }
     SafetyKnowledgeUpdateInput:
       type: object
       description: Supply one or more editable SafetyKnowledgeInput properties. Omitted properties remain unchanged.
@@ -610,4 +629,50 @@ paths:
       summary: Publish or unpublish Community Safety knowledge
       parameters: [{ $ref: '#/components/parameters/Id' }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/SafetyKnowledgePublicationInput' } } } }
+      responses: { '200': { description: Publication state updated. }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/alerts:
+    get:
+      tags: [Alerts]
+      summary: List published official alerts
+      description: Returns official administrator announcements that are currently published. Community Safety content is not included.
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses: { '200': { description: Published alerts found. } }
+  /api/v1/admin/alerts:
+    get:
+      tags: [Admin Alerts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: List all official alerts, including drafts
+      parameters:
+        - { $ref: '#/components/parameters/Page' }
+        - { $ref: '#/components/parameters/Limit' }
+      responses: { '200': { description: Alerts found. }, '401': { $ref: '#/components/responses/Unauthorized' }, '403': { $ref: '#/components/responses/Forbidden' } }
+    post:
+      tags: [Admin Alerts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Create an official alert draft
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AlertInput' } } } }
+      responses: { '201': { description: Alert created. }, '400': { $ref: '#/components/responses/BadRequest' } }
+  /api/v1/admin/alerts/{id}:
+    patch:
+      tags: [Admin Alerts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Update an official alert title or content
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AlertUpdateInput' } } } }
+      responses: { '200': { description: Alert updated. }, '400': { $ref: '#/components/responses/BadRequest' }, '404': { $ref: '#/components/responses/NotFound' } }
+    delete:
+      tags: [Admin Alerts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Delete an official alert
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      responses: { '204': { description: Alert deleted. }, '404': { $ref: '#/components/responses/NotFound' } }
+  /api/v1/admin/alerts/{id}/publish:
+    patch:
+      tags: [Admin Alerts]
+      security: [{ cookieAuth: [] }, { bearerAuth: [] }]
+      summary: Publish or unpublish an official alert
+      parameters: [{ $ref: '#/components/parameters/Id' }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: '#/components/schemas/AlertPublicationInput' } } } }
       responses: { '200': { description: Publication state updated. }, '404': { $ref: '#/components/responses/NotFound' } }

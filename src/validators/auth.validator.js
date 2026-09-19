@@ -1,9 +1,22 @@
 import { z } from 'zod'
 
 const normalizePhoneNumber = (value) => value.replace(/[\s().-]/g, '')
+const hasValidEmailDomain = (value) => {
+  const domain = value.split('@')[1] || ''
+  if (domain.length > 253 || !domain.includes('.')) return false
+  const labels = domain.split('.')
+  return labels.every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/i.test(label))
+    && /^[a-z]{2,63}$/i.test(labels.at(-1))
+}
+const emailSchema = z.string().trim().email().max(255)
+  .refine(hasValidEmailDomain, 'Enter an email address with a valid domain')
+  .transform((value) => value.toLowerCase())
 const phoneNumberSchema = z.string().trim().max(30)
   .transform(normalizePhoneNumber)
-  .refine((value) => /^(?:\+[1-9]\d{7,14}|0\d{7,14})$/.test(value), 'Enter a valid phone number')
+  .refine(
+    (value) => /^0\d{8,9}$/.test(value),
+    'Phone number must contain 9 to 10 digits and start with 0',
+  )
 const httpUrlSchema = z.string().trim().url().max(512).refine((value) => {
   const protocol = new URL(value).protocol
   return protocol === 'http:' || protocol === 'https:'
@@ -14,7 +27,7 @@ const passwordSchema = z.string().min(8).refine(
 )
 
 const contactFields = {
-  email: z.string().trim().email().max(255).transform((value) => value.toLowerCase()).optional(),
+  email: emailSchema.optional(),
   phoneNumber: phoneNumberSchema.optional(),
 }
 
@@ -37,7 +50,7 @@ const loginSchema = z.object({
 const updateProfileSchema = z.object({
   name: z.string().trim().min(1).max(100).optional(),
   username: z.string().trim().min(3).max(100).regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores').optional(),
-  email: z.string().trim().email().max(255).transform((value) => value.toLowerCase()).optional(),
+  email: emailSchema.optional(),
 }).refine((data) => Object.keys(data).length > 0, { message: 'At least one profile field is required' })
 
 export { loginSchema, registerSchema, updateProfileSchema }

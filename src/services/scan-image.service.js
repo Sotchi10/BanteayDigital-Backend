@@ -29,13 +29,10 @@ const createImageScan = async ({ userId, image, language }) => {
   const path = `scans/${userId}/${scanId}/image.${imageExtensions[image.mimetype]}`
   let storagePath
   try {
-    // Upload first so an unreadable image can be reliably cleaned up before
-    // returning the OCR validation error.
-    try {
-      storagePath = await imageUploader({ path, image })
-    } catch {
-      storagePath = undefined
-    }
+    // A report created from this scan must retain its original image. Abort the
+    // scan if durable storage is unavailable instead of creating a text-only
+    // record that can never show its evidence in the community feed.
+    storagePath = await imageUploader({ path, image })
 
     let extraction
     try {
@@ -54,7 +51,7 @@ const createImageScan = async ({ userId, image, language }) => {
     // provenance remains accurate without sending an unsupported type to AI APIs.
     return await createScan({
       id: scanId, userId, type: 'TEXT', inputType: 'IMAGE', value: text, language,
-      imageMetadata: { ...(storagePath ? { imageStoragePath: storagePath } : {}), imageMimeType: image.mimetype, imageSize: image.size },
+      imageMetadata: { imageStoragePath: storagePath, imageMimeType: image.mimetype, imageSize: image.size },
     })
   } catch (error) {
     await imageRemover(storagePath)

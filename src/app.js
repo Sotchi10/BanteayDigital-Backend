@@ -10,6 +10,8 @@ import adminRoutes from './routes/admin.routes.js'
 import scanRoutes from './routes/scan.routes.js'
 import safetyKnowledgeRoutes from './routes/safety-knowledge.routes.js'
 import adminSafetyKnowledgeRoutes from './routes/admin-safety-knowledge.routes.js'
+import alertRoutes from './routes/alert.routes.js'
+import adminAlertRoutes from './routes/admin-alert.routes.js'
 import publicProfileRoutes from './routes/public-profile.routes.js'
 import { errorHandler, notFoundHandler } from './middleware/error.middleware.js'
 import asyncHandler from './utils/async-handler.js'
@@ -208,10 +210,12 @@ function registerDocumentationRoutes(app) {
 function registerApiRoutes(app) {
   app.use('/api/v1/scans', scanRoutes)
   app.use('/api/v1/safety-knowledge', safetyKnowledgeRoutes)
+  app.use('/api/v1/alerts', alertRoutes)
   app.use('/api/v1/auth', authRoutes)
   app.use('/api/v1/reports', reportRoutes)
-  app.use('/api/v1/admin', adminRoutes)
   app.use('/api/v1/admin/safety-knowledge', adminSafetyKnowledgeRoutes)
+  app.use('/api/v1/admin/alerts', adminAlertRoutes)
+  app.use('/api/v1/admin', adminRoutes)
   app.use('/api/v1/community', communityRoutes)
   app.use('/api/v1/users', publicProfileRoutes)
 }

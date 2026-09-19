@@ -127,6 +127,34 @@ test('POST /api/v1/scans rejects unsupported image types', async (t) => {
   assert.deepEqual(await response.json(), { message: 'Image must be a PNG, JPG, JPEG, or WEBP file' })
 })
 
+test('POST /api/v1/scans does not create a reportable image scan when image storage fails', async (t) => {
+  setAuthRepositoryForTests(activeUser)
+  t.after(() => setAuthRepositoryForTests())
+  let ocrCalls = 0
+  setOcrExtractorForTests(async () => {
+    ocrCalls++
+    return { text: 'Send your OTP now', languages: 'eng', character_count: 17 }
+  })
+  t.after(() => setOcrExtractorForTests())
+  setImageStorageForTests({
+    uploader: async () => { throw new ApiError(503, 'Image storage is unavailable') },
+    remover: async () => {},
+  })
+  t.after(() => setImageStorageForTests())
+  const baseUrl = await startServer(t)
+  const form = new FormData()
+  form.append('inputType', 'IMAGE')
+  form.append('image', new Blob([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], { type: 'image/png' }), 'scan.png')
+
+  const response = await fetch(`${baseUrl}/api/v1/scans`, {
+    method: 'POST', headers: { authorization: `Bearer ${signToken('user-1', 0)}` }, body: form,
+  })
+
+  assert.equal(response.status, 503)
+  assert.deepEqual(await response.json(), { message: 'Image storage is unavailable' })
+  assert.equal(ocrCalls, 0)
+})
+
 test('POST /api/v1/scans returns NO_READABLE_TEXT without retrieval', async (t) => {
   setAuthRepositoryForTests(activeUser)
   t.after(() => setAuthRepositoryForTests())

@@ -8,13 +8,41 @@ let imageUrlResolver = getPublicScanImageUrl
 const publicPostWhere = { isPublished: true, report: { is: { status: 'APPROVED' } } }
 const publicAuthorSelect = { id: true, username: true, name: true, avatarUrl: true }
 
-const postInclude = (userId) => ({
+const riskForScan = (scan) => {
+  if (scan?.analysisRiskLevel) {
+    return `${scan.analysisRiskLevel}`.charAt(0) + `${scan.analysisRiskLevel}`.slice(1).toLowerCase()
+  }
+  return ({
+    STRONG_SCAM_INDICATORS: 'Critical',
+    SUSPICIOUS: 'High',
+    CAUTION: 'Medium',
+    NO_STRONG_WARNING_SIGNS: 'Low',
+    INSUFFICIENT_EVIDENCE: 'Unknown',
+  })[scan?.assessment] || null
+}
+
+const postInclude = (userId, { includeAnalysis = false } = {}) => ({
   author: { select: publicAuthorSelect },
   // A post only exposes the original screenshot after its report has been
   // approved. Do not return the report itself (which may contain private data).
   report: {
     select: {
-      scan: { select: { imageStoragePath: true } },
+      scan: {
+        select: {
+          imageStoragePath: true,
+          assessment: true,
+          analysisRiskLevel: true,
+          scamCaseMatches: {
+            take: 1,
+            select: { scamCase: { select: { scamType: true } } },
+          },
+          ...(includeAnalysis ? {
+            analysisSummary: true,
+            analysisReasons: true,
+            recommendedActions: true,
+          } : {}),
+        },
+      },
       // CommunityPost.author is the moderator who published the post. The
       // report user is the member who originally submitted it.
       user: { select: publicAuthorSelect },
@@ -31,9 +59,11 @@ const postInclude = (userId) => ({
   ...(userId ? { saves: { where: { userId }, select: { id: true }, take: 1 } } : {}),
 })
 
-const serializePost = async (post) => {
+const serializePost = async (post, { includeAnalysis = false } = {}) => {
   const { _count, likes, saves, report, author: moderator, ...publicPost } = post
-  const imageUrl = await imageUrlResolver(report?.scan?.imageStoragePath)
+  const scan = report?.scan
+  const risk = riskForScan(scan)
+  const imageUrl = await imageUrlResolver(scan?.imageStoragePath)
   const author = report?.user?.username || report?.user?.name
     ? report.user
     : moderator?.username || moderator?.name
@@ -42,7 +72,18 @@ const serializePost = async (post) => {
   return {
     ...publicPost,
     author,
+    ...(risk ? { risk } : {}),
+    ...(scan?.scamCaseMatches?.[0]?.scamCase?.scamType ? { category: scan.scamCaseMatches[0].scamCase.scamType } : {}),
     ...(imageUrl ? { imageUrl } : {}),
+    ...(includeAnalysis ? {
+      reportDetails: {
+        analysis: {
+          summary: scan?.analysisSummary || null,
+          reasons: Array.isArray(scan?.analysisReasons) ? scan.analysisReasons : [],
+          recommendedActions: Array.isArray(scan?.recommendedActions) ? scan.recommendedActions : [],
+        },
+      },
+    } : {}),
     interaction: {
       likeCount: _count?.likes || 0,
       shareCount: _count?.shares || 0,
@@ -95,10 +136,10 @@ const listPosts = async ({ query, userId }) => {
 const getPostById = async ({ id, userId }) => {
   const post = await communityRepository.communityPost.findFirst({
     where: { id, ...publicPostWhere },
-    include: postInclude(userId),
+    include: postInclude(userId, { includeAnalysis: true }),
   })
   if (!post) throw new ApiError(404, 'Community post not found')
-  return await serializePost(post)
+  return await serializePost(post, { includeAnalysis: true })
 }
 
 const listSavedPosts = async ({ query, userId }) => {

@@ -3,6 +3,7 @@ import test from 'node:test'
 import {
   createComment,
   deleteComment,
+  getPostById,
   likePost,
   listSavedPosts,
   listPosts,
@@ -45,6 +46,8 @@ test('post list exposes counts and the current user like state', async (t) => {
   assert.equal('report' in result.posts[0], false)
   assert.equal(listQuery.where.isPublished, true)
   assert.equal(listQuery.include.report.select.user.select.username, true)
+  assert.equal(listQuery.include.report.select.scan.select.assessment, true)
+  assert.equal(listQuery.include.report.select.scan.select.analysisSummary, undefined)
   assert.equal(listQuery.include.saves.where.userId, 'user-1')
 })
 
@@ -69,6 +72,56 @@ test('post ownership uses the reporter display name when no username is set', as
   assert.deepEqual(result.posts[0].author, {
     id: 'reporter-1', username: null, name: 'User A', avatarUrl: 'https://cdn.example/user-a.png',
   })
+})
+
+test('the feed exposes risk while analysis details are limited to the single-post response', async (t) => {
+  const scan = {
+    imageStoragePath: null,
+    assessment: 'SUSPICIOUS',
+    analysisRiskLevel: 'HIGH',
+    analysisSummary: 'The message pressures the recipient to act immediately.',
+    analysisReasons: ['It uses urgent account language.'],
+    recommendedActions: ['Contact the organization through its official website.'],
+    scamCaseMatches: [{ scamCase: { scamType: 'PHISHING' } }],
+  }
+  let detailQuery
+  setCommunityImageUrlResolverForTests(() => null)
+  setCommunityRepositoryForTests({
+    communityPost: {
+      findMany: async () => [{
+        id: 'post-1', title: 'Warning', author: null,
+        report: { scan, user: { id: 'user-1', username: 'reporter', name: 'Reporter', avatarUrl: null } },
+        _count: { likes: 0, shares: 0, comments: 0 },
+      }],
+      findFirst: async (query) => {
+        detailQuery = query
+        return {
+          id: 'post-1', title: 'Warning', author: null,
+          report: { scan, user: { id: 'user-1', username: 'reporter', name: 'Reporter', avatarUrl: null } },
+          _count: { likes: 0, shares: 0, comments: 0 },
+        }
+      },
+      count: async () => 1,
+    },
+  })
+  t.after(() => {
+    setCommunityImageUrlResolverForTests()
+    setCommunityRepositoryForTests()
+  })
+
+  const feed = await listPosts({ query: { page: 1, limit: 20 } })
+  assert.equal(feed.posts[0].risk, 'High')
+  assert.equal(feed.posts[0].category, 'PHISHING')
+  assert.equal('reportDetails' in feed.posts[0], false)
+
+  const detail = await getPostById({ id: 'post-1' })
+  assert.equal(detail.risk, 'High')
+  assert.deepEqual(detail.reportDetails.analysis, {
+    summary: scan.analysisSummary,
+    reasons: scan.analysisReasons,
+    recommendedActions: scan.recommendedActions,
+  })
+  assert.equal(detailQuery.include.report.select.scan.select.analysisSummary, true)
 })
 
 test('a share records its channel and returns the current count', async (t) => {
