@@ -23,10 +23,11 @@ const riskForScan = (scan) => {
 
 const postInclude = (userId, { includeAnalysis = false } = {}) => ({
   author: { select: publicAuthorSelect },
-  // A post only exposes the original screenshot after its report has been
-  // approved. Do not return the report itself (which may contain private data).
+  // Expose only the moderated user case and the approved scan fields required
+  // by the public post. Never return the report object itself.
   report: {
     select: {
+      details: true,
       scan: {
         select: {
           imageStoragePath: true,
@@ -72,6 +73,7 @@ const serializePost = async (post, { includeAnalysis = false } = {}) => {
   return {
     ...publicPost,
     author,
+    ...(report?.details ? { userCase: report.details } : {}),
     ...(risk ? { risk } : {}),
     ...(scan?.scamCaseMatches?.[0]?.scamCase?.scamType ? { category: scan.scamCaseMatches[0].scamCase.scamType } : {}),
     ...(imageUrl ? { imageUrl } : {}),

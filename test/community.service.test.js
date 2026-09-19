@@ -25,7 +25,7 @@ test('post list exposes counts and the current user like state', async (t) => {
     communityPost: {
       findMany: async (query) => { listQuery = query; return [{
         id: 'post-1', title: 'Warning', author: { id: 'admin-1', name: 'Admin', avatarUrl: null },
-        report: { scan: { imageStoragePath: 'scans/user-1/scan.png' }, user: { id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null } },
+        report: { details: 'I paid before the seller stopped responding.', scan: { imageStoragePath: 'scans/user-1/scan.png' }, user: { id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null } },
         _count: { likes: 3, shares: 4, comments: 2 }, likes: [{ id: 'like-1' }], saves: [{ id: 'save-1' }],
       }] },
       count: async () => 1,
@@ -39,6 +39,7 @@ test('post list exposes counts and the current user like state', async (t) => {
   const result = await listPosts({ query: { page: 1, limit: 20 }, userId: 'user-1' })
   assert.deepEqual(result.posts[0].interaction, { likeCount: 3, shareCount: 4, commentCount: 2, likedByMe: true, savedByMe: true })
   assert.equal(result.posts[0].imageUrl, 'https://cdn.example/scans/user-1/scan.png')
+  assert.equal(result.posts[0].userCase, 'I paid before the seller stopped responding.')
   assert.deepEqual(result.posts[0].author, {
     id: 'reporter-1', username: 'user-a', name: 'User A', avatarUrl: null,
   })
@@ -46,6 +47,7 @@ test('post list exposes counts and the current user like state', async (t) => {
   assert.equal('report' in result.posts[0], false)
   assert.equal(listQuery.where.isPublished, true)
   assert.equal(listQuery.include.report.select.user.select.username, true)
+  assert.equal(listQuery.include.report.select.details, true)
   assert.equal(listQuery.include.report.select.scan.select.assessment, true)
   assert.equal(listQuery.include.report.select.scan.select.analysisSummary, undefined)
   assert.equal(listQuery.include.saves.where.userId, 'user-1')

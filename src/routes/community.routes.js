@@ -16,6 +16,7 @@ import {
   unsave,
 } from '../controllers/community.controller.js'
 import { optionalAuth, requireAuth } from '../middleware/auth.middleware.js'
+import { createRateLimiter } from '../middleware/rate-limit.middleware.js'
 import requireRole from '../middleware/role.middleware.js'
 import validate from '../middleware/validate.middleware.js'
 import {
@@ -31,6 +32,11 @@ import {
 } from '../validators/community.validator.js'
 
 const router = Router()
+const shareRateLimiter = createRateLimiter({
+  windowMs: 60_000,
+  max: 20,
+  message: 'Too many share events. Please try again later.',
+})
 
 router.get('/posts', optionalAuth, validate(listPostsQuerySchema, 'query'), list)
 router.get('/posts/saved', requireAuth, validate(listPostsQuerySchema, 'query'), listSaved)
@@ -39,7 +45,7 @@ router.put('/posts/:id/like', requireAuth, validate(postIdParamSchema, 'params')
 router.delete('/posts/:id/like', requireAuth, validate(postIdParamSchema, 'params'), unlike)
 router.put('/posts/:id/save', requireAuth, validate(postIdParamSchema, 'params'), save)
 router.delete('/posts/:id/save', requireAuth, validate(postIdParamSchema, 'params'), unsave)
-router.post('/posts/:id/shares', optionalAuth, validate({ params: postIdParamSchema, body: recordShareSchema }), share)
+router.post('/posts/:id/shares', shareRateLimiter, optionalAuth, validate({ params: postIdParamSchema, body: recordShareSchema }), share)
 router.get('/posts/:id/comments', validate({ params: postIdParamSchema, query: listCommentsQuerySchema }), listPostComments)
 router.post('/posts/:id/comments', requireAuth, validate({ params: postIdParamSchema, body: createCommentSchema }), createPostComment)
 router.patch('/comments/:id', requireAuth, validate({ params: commentIdParamSchema, body: updateCommentSchema }), editComment)

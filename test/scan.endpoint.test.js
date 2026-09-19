@@ -74,6 +74,33 @@ test('POST /api/v1/scans validates, scans, saves, and returns a result', async (
   assert.deepEqual(body.scan.analysis.citedCaseIds, [])
 })
 
+test('guest scans purge anonymous inputs older than 24 hours before persistence', async (t) => {
+  let cleanupWhere
+  setScanRepositoryForTests({
+    scan: {
+      deleteMany: async ({ where }) => { cleanupWhere = where; return { count: 2 } },
+      create: async ({ data, select }) => {
+        const record = { id: 'guest-scan', createdAt: new Date(), scamCaseMatches: [], ...data }
+        return Object.fromEntries(Object.keys(select).map((key) => [key, key === 'scamCaseMatches' ? [] : record[key]]))
+      },
+    },
+  })
+  t.after(() => setScanRepositoryForTests())
+  setAiRetrieverForTests(async () => ({ matches: [] }))
+  t.after(() => setAiRetrieverForTests())
+  setAiAnalyzerForTests(async () => { throw new Error('AI unavailable') })
+  t.after(() => setAiAnalyzerForTests())
+
+  const { createScan } = await import('../src/services/scan.service.js')
+  await createScan({ type: 'TEXT', value: 'Please review this message.' })
+
+  assert.equal(cleanupWhere.userId, null)
+  assert.ok(cleanupWhere.createdAt.lt instanceof Date)
+  const cutoffAge = Date.now() - cleanupWhere.createdAt.lt.getTime()
+  assert.ok(cutoffAge >= 24 * 60 * 60 * 1000)
+  assert.ok(cutoffAge < 24 * 60 * 60 * 1000 + 5_000)
+})
+
 test('TEXT scanning retains deterministic warnings when retrieval and AI fail', async (t) => {
   setScanRepositoryForTests({
     scan: {

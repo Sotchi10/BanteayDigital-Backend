@@ -97,13 +97,18 @@ const reviewReport = async ({ id, adminId, status, reviewNote }) => {
   return reportRepository.scamReport.findUnique({ where: { id }, include: adminReportInclude })
 }
 
-const updateManagedReport = async ({ id, title, content, summary }) => {
+const updateManagedReport = async ({ id, title, content, summary, details }) => {
   const report = await reportRepository.scamReport.findUnique({
     where: { id },
     select: { id: true, status: true, communityPost: { select: { id: true } } },
   })
   if (!report) throw new ApiError(404, 'Scam report not found')
-  if (report.status !== APPROVED_REPORT_STATUS) throw new ApiError(409, 'Only approved reports can be edited')
+  if (report.status !== PENDING_REPORT_STATUS && report.status !== APPROVED_REPORT_STATUS) {
+    throw new ApiError(409, 'Rejected reports can no longer be edited')
+  }
+  if (report.status === PENDING_REPORT_STATUS && (title !== undefined || content !== undefined || summary !== undefined)) {
+    throw new ApiError(409, 'Only the user case can be edited before a report is approved')
+  }
 
   await reportRepository.$transaction(async (tx) => {
     await tx.scamReport.update({
@@ -111,6 +116,7 @@ const updateManagedReport = async ({ id, title, content, summary }) => {
       data: {
         ...(title !== undefined && { title }),
         ...(content !== undefined && { content }),
+        ...(details !== undefined && { details }),
       },
     })
 

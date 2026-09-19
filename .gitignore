@@ -1,5 +1,7 @@
 node_modules
 .env
+.env.*
+!.env.example
 *.local.js
 uploads/
 backend/uploads/

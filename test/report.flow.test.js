@@ -10,7 +10,7 @@ import {
   updateManagedReport,
 } from '../src/services/report.service.js'
 
-test('a user report is created only from the user\'s own scan', async (t) => {
+test('a user report is created only from the user\'s own scan and keeps their case details', async (t) => {
   const created = []
   const scanUpdates = []
   let scanQuery
@@ -28,10 +28,10 @@ test('a user report is created only from the user\'s own scan', async (t) => {
   })
   t.after(() => setReportRepositoryForTests())
 
-  const report = await createReportFromScan({ scanId: 'scan-1', userId: 'user-1', title: 'Suspicious message' })
+  const report = await createReportFromScan({ scanId: 'scan-1', userId: 'user-1', title: 'Suspicious message', details: 'The sender asked me to pay an unexpected fee.' })
   assert.equal(report.status, 'PENDING')
   assert.deepEqual(scanQuery.where, { id: 'scan-1', userId: 'user-1' })
-  assert.deepEqual(created[0], { userId: 'user-1', scanId: 'scan-1', title: 'Suspicious message', content: 'Suspicious message' })
+  assert.deepEqual(created[0], { userId: 'user-1', scanId: 'scan-1', title: 'Suspicious message', details: 'The sender asked me to pay an unexpected fee.', content: 'Suspicious message' })
   assert.deepEqual(scanUpdates[0], { where: { id: 'scan-1' }, data: { reportStatus: 'REPORTED' } })
 })
 
@@ -99,6 +99,24 @@ test('editing a published report updates both the report and community post', as
   assert.equal(reportUpdates[0].data.title, 'Updated warning')
   assert.equal(postUpdates[0].where.id, 'post-1')
   assert.equal(postUpdates[0].data.summary, 'Updated safety summary.')
+})
+
+test('an administrator can moderate a pending report user case without editing public fields', async (t) => {
+  const reportUpdates = []
+  setReportRepositoryForTests({
+    scamReport: {
+      findUnique: async () => ({ id: 'report-1', status: 'PENDING', communityPost: null }),
+      findFirst: async () => ({ id: 'report-1', status: 'PENDING', details: 'Moderated user case.' }),
+    },
+    $transaction: async (work) => work({
+      scamReport: { update: async (query) => reportUpdates.push(query) },
+      communityPost: { update: async () => {} },
+    }),
+  })
+  t.after(() => setReportRepositoryForTests())
+
+  await updateManagedReport({ id: 'report-1', details: 'Moderated user case.' })
+  assert.equal(reportUpdates[0].data.details, 'Moderated user case.')
 })
 
 test('unpublishing hides the post and clears its likes and comments in one transaction', async (t) => {

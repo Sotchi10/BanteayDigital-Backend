@@ -297,6 +297,13 @@ const createAnalysis = async ({ type, value, findings, matches, retrievalStatus,
 }
 
 const createScan = async ({ id, userId, type, value, inputType = type, imageMetadata, language = 'en' }) => {
+  if (!userId) {
+    const retentionCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+    await scanRepository.scan.deleteMany({
+      where: { userId: null, createdAt: { lt: retentionCutoff } },
+    })
+  }
+
   const knowledgeRules = type === 'TEXT' ? await loadActiveKnowledgeRules() : []
   const deterministic = runScan({ type, value, knowledgeRules })
   const [retrieval, urlReputation] = await Promise.all([

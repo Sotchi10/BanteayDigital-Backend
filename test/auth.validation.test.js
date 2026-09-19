@@ -9,14 +9,14 @@ test('login accepts exactly one contact identifier', () => {
   assert.equal(loginSchema.safeParse({ email: 'sokha@gmail.com', phoneNumber: '012345678', password: 'password123' }).success, false)
 })
 
-test('auth validation normalizes phone numbers and limits URL schemes and bcrypt byte length', () => {
+test('auth validation normalizes phone numbers, discards unsupported avatar URLs, and limits bcrypt byte length', () => {
   const registration = registerSchema.parse({
     phoneNumber: '012-345-678',
     password: 'password123',
     avatarUrl: 'https://cdn.example/avatar.png',
   })
   assert.equal(registration.phoneNumber, '012345678')
-  assert.equal(registerSchema.safeParse({ email: 'a@gmail.com', password: 'password123', avatarUrl: 'javascript:alert(1)' }).success, false)
+  assert.equal('avatarUrl' in registration, false)
   assert.equal(registerSchema.safeParse({ email: 'a@gmail.com', password: 'ក'.repeat(30) }).success, false)
 })
 

@@ -14,8 +14,9 @@ test('admin audit query applies safe pagination limits', () => {
   assert.equal(listAuditLogsQuerySchema.safeParse({ limit: 101 }).success, false)
 })
 
-test('managed report edits require at least one validated public field', () => {
+test('admin report edits require at least one validated field', () => {
   assert.equal(updateManagedReportSchema.safeParse({}).success, false)
   assert.equal(updateManagedReportSchema.safeParse({ title: 'Updated warning' }).success, true)
   assert.equal(updateManagedReportSchema.safeParse({ content: 'too short' }).success, false)
+  assert.equal(updateManagedReportSchema.safeParse({ details: 'A moderated version of the user case.' }).success, true)
 })

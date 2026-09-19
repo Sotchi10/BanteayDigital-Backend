@@ -7,12 +7,12 @@ const PASSWORD_SALT_ROUNDS = 12
 // supplied account does not exist. It is never associated with a real user.
 const DUMMY_PASSWORD_HASH = '$2b$12$C6UzMDM.H6dfI/f/IKcEe.5hQ0tQ0CNS1L2.s.6QIML.n7RtA.0wK'
 
-const registerUser = async ({ email, password, name, phoneNumber, age, avatarUrl }) => {
+const registerUser = async ({ email, password, name, phoneNumber, age }) => {
   const passwordHash = await bcrypt.hash(password, PASSWORD_SALT_ROUNDS)
 
   try {
     const user = await prisma.user.create({
-      data: { email, passwordHash, name, phone_num: phoneNumber, age, avatarUrl },
+      data: { email, passwordHash, name, phone_num: phoneNumber, age },
     })
 
     return user
