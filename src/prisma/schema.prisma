@@ -93,14 +93,14 @@ model User {
   updatedAt    DateTime   @updatedAt
 
   scans           Scan[]
-  reports         ScamReport[]    @relation("ReportAuthor")
-  reviewedReports ScamReport[]    @relation("ReportReviewer")
-  communityPosts  CommunityPost[] @relation("PostAuthor")
+  reports         ScamReport[]     @relation("ReportAuthor")
+  reviewedReports ScamReport[]     @relation("ReportReviewer")
+  communityPosts  CommunityPost[]  @relation("PostAuthor")
   postLikes       PostLike[]
   postSaves       PostSave[]
   postShares      PostShare[]
-  comments        Comment[]       @relation("CommentAuthor")
-  commentReports  CommentReport[] @relation("CommentReporter")
+  comments        Comment[]        @relation("CommentAuthor")
+  commentReports  CommentReport[]  @relation("CommentReporter")
   dailyUsage      UserDailyUsage[]
 
   @@index([role])
@@ -109,10 +109,10 @@ model User {
 
 model UserDailyUsage {
   userId           String
-  quotaDate        String   @db.Char(10)
-  scanCount        Int      @default(0)
-  imageUploadCount Int      @default(0)
-  reportCount      Int      @default(0)
+  quotaDate        String @db.Char(10)
+  scanCount        Int    @default(0)
+  imageUploadCount Int    @default(0)
+  reportCount      Int    @default(0)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -264,20 +264,27 @@ model CommunityPost {
 }
 
 model SafetyKnowledge {
-  id               String   @id @default(cuid())
-  title            String   @db.VarChar(255)
-  slug             String   @unique @db.VarChar(255)
-  category         String   @db.VarChar(100)
-  shortDescription String   @db.VarChar(500)
-  content          String   @db.LongText
-  warningSigns     Json
-  preventionTips   Json
-  indicators       Json
-  imageUrl         String?  @db.VarChar(512)
-  icon             String?  @db.VarChar(100)
-  isPublished      Boolean  @default(false)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  title              String   @db.VarChar(255)
+  titleKm            String   @db.VarChar(255)
+  slug               String   @unique @db.VarChar(255)
+  category           String   @db.VarChar(100)
+  categoryKm         String   @db.VarChar(100)
+  shortDescription   String   @db.VarChar(500)
+  shortDescriptionKm String   @db.VarChar(500)
+  content            String   @db.LongText
+  contentKm          String   @db.LongText
+  warningSigns       Json
+  warningSignsKm     Json
+  preventionTips     Json
+  preventionTipsKm   Json
+  indicators         Json
+  indicatorsKm       Json
+  imageUrl           String?  @db.VarChar(512)
+  icon               String?  @db.VarChar(100)
+  isPublished        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   relatedFrom SafetyKnowledgeRelation[] @relation("SafetyKnowledgeSource")
   relatedTo   SafetyKnowledgeRelation[] @relation("SafetyKnowledgeTarget")
@@ -298,13 +305,13 @@ model SafetyKnowledgeRelation {
 }
 
 model AlertMessage {
-  id           String    @id @default(cuid())
-  title        String    @db.VarChar(255)
-  content      String    @db.Text
-  isPublished  Boolean   @default(false)
-  publishedAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id          String    @id @default(cuid())
+  title       String    @db.VarChar(255)
+  content     String    @db.Text
+  isPublished Boolean   @default(false)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   @@index([isPublished, publishedAt])
   @@index([updatedAt])

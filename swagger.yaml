@@ -145,16 +145,23 @@ components:
         channel: { type: string, enum: [NATIVE, TELEGRAM, COPY_LINK] }
     SafetyKnowledgeInput:
       type: object
-      required: [title, slug, category, shortDescription, content, warningSigns, preventionTips, indicators]
+      required: [title, titleKm, slug, category, categoryKm, shortDescription, shortDescriptionKm, content, contentKm, warningSigns, warningSignsKm, preventionTips, preventionTipsKm, indicators, indicatorsKm]
       properties:
         title: { type: string, minLength: 3, maxLength: 255, example: Recognize phishing links }
+        titleKm: { type: string, minLength: 3, maxLength: 255, example: សម្គាល់តំណភ្ជាប់បន្លំ }
         slug: { type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$', example: recognize-phishing-links }
         category: { type: string, maxLength: 100, example: Phishing }
+        categoryKm: { type: string, maxLength: 100, example: ការបន្លំ }
         shortDescription: { type: string, minLength: 10, maxLength: 500 }
+        shortDescriptionKm: { type: string, minLength: 10, maxLength: 500 }
         content: { type: string, minLength: 10, maxLength: 50000 }
+        contentKm: { type: string, minLength: 10, maxLength: 50000 }
         warningSigns: { type: array, items: { type: string }, minItems: 1 }
+        warningSignsKm: { type: array, items: { type: string }, minItems: 1 }
         preventionTips: { type: array, items: { type: string }, minItems: 1 }
+        preventionTipsKm: { type: array, items: { type: string }, minItems: 1 }
         indicators: { type: array, items: { type: string }, minItems: 1, description: Retained for future scan recommendations. }
+        indicatorsKm: { type: array, items: { type: string }, minItems: 1, description: Khmer indicators retained for future scan recommendations. }
         relatedTopicIds: { type: array, items: { type: string }, maxItems: 20 }
         imageUrl: { type: string, format: uri, nullable: true }
         icon: { type: string, nullable: true, example: shield }
@@ -186,13 +193,20 @@ components:
       description: Supply one or more editable SafetyKnowledgeInput properties. Omitted properties remain unchanged.
       properties:
         title: { type: string, minLength: 3, maxLength: 255 }
+        titleKm: { type: string, minLength: 3, maxLength: 255 }
         slug: { type: string, pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }
         category: { type: string, maxLength: 100 }
+        categoryKm: { type: string, maxLength: 100 }
         shortDescription: { type: string, minLength: 10, maxLength: 500 }
+        shortDescriptionKm: { type: string, minLength: 10, maxLength: 500 }
         content: { type: string, minLength: 10, maxLength: 50000 }
+        contentKm: { type: string, minLength: 10, maxLength: 50000 }
         warningSigns: { type: array, items: { type: string }, minItems: 1 }
+        warningSignsKm: { type: array, items: { type: string }, minItems: 1 }
         preventionTips: { type: array, items: { type: string }, minItems: 1 }
+        preventionTipsKm: { type: array, items: { type: string }, minItems: 1 }
         indicators: { type: array, items: { type: string }, minItems: 1 }
+        indicatorsKm: { type: array, items: { type: string }, minItems: 1 }
         relatedTopicIds: { type: array, items: { type: string }, maxItems: 20 }
         imageUrl: { type: string, format: uri, nullable: true }
         icon: { type: string, nullable: true }
@@ -572,8 +586,9 @@ paths:
     get:
       tags: [Community Safety]
       summary: List published Community Safety knowledge
-      description: Only published knowledge and published related topics are returned.
+      description: Only published knowledge and published related topics are returned. Localized content follows the requested language.
       parameters:
+        - { name: lang, in: query, schema: { type: string, enum: [en, km], default: en } }
         - { name: category, in: query, schema: { type: string } }
         - { name: q, in: query, schema: { type: string } }
         - { $ref: '#/components/parameters/Page' }
@@ -583,7 +598,9 @@ paths:
     get:
       tags: [Community Safety]
       summary: Get one published Community Safety knowledge item
-      parameters: [{ name: slug, in: path, required: true, schema: { type: string } }]
+      parameters:
+        - { name: slug, in: path, required: true, schema: { type: string } }
+        - { name: lang, in: query, schema: { type: string, enum: [en, km], default: en } }
       responses: { '200': { description: Published knowledge found. }, '404': { $ref: '#/components/responses/NotFound' } }
   /api/v1/admin/safety-knowledge:
     get:

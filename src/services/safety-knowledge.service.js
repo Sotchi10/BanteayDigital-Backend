@@ -1,12 +1,24 @@
 import prisma from '../config/database.js'
 import ApiError from '../utils/api-error.js'
+import localizeSafetyKnowledgeTopic from '../utils/safety-knowledge-localization.js'
 
-const topicFields = { id: true, title: true, slug: true, category: true, shortDescription: true, content: true, warningSigns: true, preventionTips: true, indicators: true, imageUrl: true, icon: true, isPublished: true, createdAt: true, updatedAt: true }
+const topicFields = {
+  id: true, title: true, titleKm: true, slug: true, category: true, categoryKm: true,
+  shortDescription: true, shortDescriptionKm: true, content: true, contentKm: true,
+  warningSigns: true, warningSignsKm: true, preventionTips: true, preventionTipsKm: true,
+  indicators: true, indicatorsKm: true, imageUrl: true, icon: true,
+  isPublished: true, createdAt: true, updatedAt: true,
+}
 const selectFor = (publishedRelatedOnly) => ({
   ...topicFields,
   relatedFrom: { where: publishedRelatedOnly ? { target: { isPublished: true } } : undefined, select: { target: { select: topicFields } } },
 })
-const serialize = ({ relatedFrom, ...topic }) => ({ ...topic, relatedTopics: relatedFrom.map(({ target }) => target) })
+const serializeAdmin = ({ relatedFrom, ...topic }) => ({ ...topic, relatedTopics: relatedFrom.map(({ target }) => target) })
+const serializePublic = ({ relatedFrom, ...topic }, language) => ({
+  ...localizeSafetyKnowledgeTopic(topic, language),
+  language,
+  relatedTopics: relatedFrom.map(({ target }) => localizeSafetyKnowledgeTopic(target, language)),
+})
 const relationData = (sourceId, relatedTopicIds) => relatedTopicIds.map((targetId) => ({ sourceId, targetId }))
 
 const verifyRelatedTopics = async (repository, sourceId, relatedTopicIds) => {
@@ -19,39 +31,53 @@ const verifyRelatedTopics = async (repository, sourceId, relatedTopicIds) => {
 }
 
 const listPublicSafetyKnowledge = async (query) => {
-  const { page, limit, category, q } = query
+  const { page, limit, category, q, lang } = query
+  const localizedFields = lang === 'km'
+    ? { title: 'titleKm', shortDescription: 'shortDescriptionKm', category: 'categoryKm' }
+    : { title: 'title', shortDescription: 'shortDescription', category: 'category' }
   const where = {
     isPublished: true,
-    ...(category ? { category } : {}),
-    ...(q ? { OR: [{ title: { contains: q } }, { shortDescription: { contains: q } }, { category: { contains: q } }] } : {}),
+    ...(category ? { [localizedFields.category]: category } : {}),
+    ...(q ? { OR: [
+      { [localizedFields.title]: { contains: q } },
+      { [localizedFields.shortDescription]: { contains: q } },
+      { [localizedFields.category]: { contains: q } },
+    ] } : {}),
   }
   const [topics, total] = await Promise.all([
     prisma.safetyKnowledge.findMany({ where, select: selectFor(true), skip: (page - 1) * limit, take: limit, orderBy: { updatedAt: 'desc' } }),
     prisma.safetyKnowledge.count({ where }),
   ])
-  return { knowledge: topics.map(serialize), meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) } }
+  return { knowledge: topics.map((topic) => serializePublic(topic, lang)), meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) } }
 }
 
-const getPublicSafetyKnowledge = async (slug) => {
+const getPublicSafetyKnowledge = async (slug, language = 'en') => {
   const topic = await prisma.safetyKnowledge.findFirst({ where: { slug, isPublished: true }, select: selectFor(true) })
   if (!topic) throw new ApiError(404, 'Safety knowledge item not found')
-  return serialize(topic)
+  return serializePublic(topic, language)
 }
 
 const listAdminSafetyKnowledge = async (query) => {
   const { page, limit, category, q } = query
-  const where = { ...(category ? { category } : {}), ...(q ? { OR: [{ title: { contains: q } }, { shortDescription: { contains: q } }, { category: { contains: q } }] } : {}) }
+  const where = {
+    ...(category ? { OR: [{ category }, { categoryKm: category }] } : {}),
+    ...(q ? { AND: [{ OR: [
+      { title: { contains: q } }, { titleKm: { contains: q } },
+      { shortDescription: { contains: q } }, { shortDescriptionKm: { contains: q } },
+      { category: { contains: q } }, { categoryKm: { contains: q } },
+    ] }] } : {}),
+  }
   const [topics, total] = await Promise.all([
     prisma.safetyKnowledge.findMany({ where, select: selectFor(false), skip: (page - 1) * limit, take: limit, orderBy: { updatedAt: 'desc' } }),
     prisma.safetyKnowledge.count({ where }),
   ])
-  return { knowledge: topics.map(serialize), meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) } }
+  return { knowledge: topics.map(serializeAdmin), meta: { total, page, limit, totalPages: Math.max(1, Math.ceil(total / limit)) } }
 }
 
 const getAdminSafetyKnowledge = async (id) => {
   const topic = await prisma.safetyKnowledge.findUnique({ where: { id }, select: selectFor(false) })
   if (!topic) throw new ApiError(404, 'Safety knowledge item not found')
-  return serialize(topic)
+  return serializeAdmin(topic)
 }
 
 const createSafetyKnowledge = async ({ relatedTopicIds, ...data }) => {
@@ -62,7 +88,7 @@ const createSafetyKnowledge = async ({ relatedTopicIds, ...data }) => {
       if (ids.length) await tx.safetyKnowledgeRelation.createMany({ data: relationData(created.id, ids) })
       return tx.safetyKnowledge.findUnique({ where: { id: created.id }, select: selectFor(false) })
     })
-    return serialize(topic)
+    return serializeAdmin(topic)
   } catch (error) {
     if (error.code === 'P2002') throw new ApiError(409, 'A safety knowledge item with that slug already exists')
     throw error
@@ -83,7 +109,7 @@ const updateSafetyKnowledge = async ({ id, data }) => {
       }
       return tx.safetyKnowledge.findUnique({ where: { id }, select: selectFor(false) })
     })
-    return serialize(topic)
+    return serializeAdmin(topic)
   } catch (error) {
     if (error.code === 'P2002') throw new ApiError(409, 'A safety knowledge item with that slug already exists')
     throw error

@@ -15,7 +15,7 @@ const listPublic = asyncHandler(async (request, response) => {
 })
 
 const getPublic = asyncHandler(async (request, response) => {
-  response.json({ knowledge: await getPublicSafetyKnowledge(request.params.slug) })
+  response.json({ knowledge: await getPublicSafetyKnowledge(request.params.slug, request.query.lang) })
 })
 
 const listAdmin = asyncHandler(async (request, response) => {
