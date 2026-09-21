@@ -3,7 +3,7 @@ import env from '../config/env.js'
 import { consumeReportQuota, consumeScanQuota } from '../services/daily-quota.service.js'
 
 const enforceScanQuota = async (request, _response, next) => {
-  if (env.devBypassRateLimits) return next()
+  if (!env.enableScanQuota || env.devBypassRateLimits) return next()
 
   try {
     await consumeScanQuota({

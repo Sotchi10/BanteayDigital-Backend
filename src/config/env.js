@@ -4,6 +4,7 @@ const jwtSecret = process.env.JWT_SECRET
 const nodeEnv = process.env.NODE_ENV || 'development'
 const isProduction = nodeEnv === 'production'
 const devBypassRateLimits = nodeEnv === 'development' && process.env.DEV_BYPASS_RATE_LIMITS === 'true'
+const enableScanQuota = process.env.ENABLE_SCAN_QUOTA === 'true'
 const cookieSameSite = (process.env.COOKIE_SAME_SITE || (isProduction ? 'none' : 'lax')).toLowerCase()
 const aiMatchMinimumScore = Number(process.env.AI_MATCH_MIN_SCORE || 0.65)
 const aiMatchConfidenceThreshold = Number(process.env.AI_MATCH_CONFIDENCE_THRESHOLD || 0.75)
@@ -103,6 +104,7 @@ const env = {
   jwtAudience: process.env.JWT_AUDIENCE || 'banteay-digital-clients',
   nodeEnv,
   devBypassRateLimits,
+  enableScanQuota,
   cookieSameSite,
   authCookieName: isProduction ? '__Host-banteay_token' : 'token',
   trustProxy: parseTrustProxy(),
